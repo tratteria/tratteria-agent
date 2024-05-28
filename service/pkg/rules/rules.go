@@ -71,6 +71,7 @@ func (r *Rules) Fetch() error {
 				if err := json.NewDecoder(resp.Body).Decode(&r.verificationRules); err != nil {
 					return fmt.Errorf("error decoding verification rules: %v", err)
 				}
+
 				return nil
 			}
 
@@ -90,6 +91,5 @@ func (r *Rules) Fetch() error {
 }
 
 func (r *Rules) GetVerificationRule() map[string]VerificationRule {
-
 	return r.verificationRules
 }
