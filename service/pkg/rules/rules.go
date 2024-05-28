@@ -69,7 +69,7 @@ func (r *Rules) Fetch() error {
 
 			if resp.StatusCode == http.StatusOK {
 				if err := json.NewDecoder(resp.Body).Decode(&r.verificationRules); err != nil {
-					return fmt.Errorf("error decoding verification url: %v", err)
+					return fmt.Errorf("error decoding verification rules: %v", err)
 				}
 				return nil
 			}
