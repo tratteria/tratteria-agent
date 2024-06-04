@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	TrmUrl        *url.URL
+	TconfigdUrl   *url.URL
 	Service       string
 	TraTsAudience string
 	TraTsIssuer   string
@@ -16,7 +16,7 @@ type Config struct {
 
 func GetAppConfig() *Config {
 	return &Config{
-		TrmUrl:        parseURL(getEnv("TRM_URL")),
+		TconfigdUrl:   parseURL(getEnv("TCONFIGD_URL")),
 		Service:       getEnv("SERVICE"),
 		TraTsAudience: getEnv("TRATS_AUDIENCE"),
 		TraTsIssuer:   getEnv("TRATS_ISSUER"),
