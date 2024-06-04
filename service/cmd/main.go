@@ -39,7 +39,7 @@ func main() {
 
 	httpClient := &http.Client{}
 
-	rules := rules.NewRules(appConfig.TrmUrl, appConfig.Service, httpClient, logger)
+	rules := rules.NewRules(appConfig.TconfigdUrl, appConfig.Service, httpClient, logger)
 
 	err = rules.Fetch()
 	if err != nil {

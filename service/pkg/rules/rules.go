@@ -35,16 +35,16 @@ type VerificationAdzField struct {
 }
 
 type Rules struct {
-	trmURL            *url.URL
+	tconfigdUrl       *url.URL
 	service           string
 	httpClient        *http.Client
 	verificationRules map[string]VerificationRule
 	logger            *zap.Logger
 }
 
-func NewRules(trmURL *url.URL, service string, httpClient *http.Client, logger *zap.Logger) *Rules {
+func NewRules(tconfigdUrl *url.URL, service string, httpClient *http.Client, logger *zap.Logger) *Rules {
 	return &Rules{
-		trmURL:            trmURL,
+		tconfigdUrl:       tconfigdUrl,
 		service:           service,
 		httpClient:        httpClient,
 		verificationRules: make(map[string]VerificationRule),
@@ -53,7 +53,7 @@ func NewRules(trmURL *url.URL, service string, httpClient *http.Client, logger *
 }
 
 func (r *Rules) Fetch() error {
-	endpoint := *r.trmURL
+	endpoint := *r.tconfigdUrl
 	endpoint.Path = path.Join(endpoint.Path, "verification-rules")
 
 	query := endpoint.Query()
@@ -76,9 +76,9 @@ func (r *Rules) Fetch() error {
 			}
 
 			resp.Body.Close()
-			r.logger.Error("Received non-OK HTTP status from TRM server %s\n", zap.String("status-code", resp.Status))
+			r.logger.Error("Received non-OK HTTP status from tconfigd server %s\n", zap.String("status-code", resp.Status))
 		} else {
-			r.logger.Error("Error connecting to TRM server: %v\n", zap.Error(err))
+			r.logger.Error("Error connecting to tconfigd server: %v\n", zap.Error(err))
 		}
 
 		if i < MaxAttempts-1 {
