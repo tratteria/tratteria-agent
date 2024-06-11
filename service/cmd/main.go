@@ -11,6 +11,7 @@ import (
 	"github.com/tratteria/tratteria-agent/pkg/rules"
 	"github.com/tratteria/tratteria-agent/pkg/service"
 	"github.com/tratteria/tratteria-agent/pkg/trat"
+	"github.com/tratteria/tratteria-agent/pkg/tratinterceptor"
 	"go.uber.org/zap"
 )
 
@@ -39,38 +40,46 @@ func main() {
 
 	httpClient := &http.Client{}
 
-	rules := rules.NewRules(appConfig.TconfigdUrl, appConfig.Service, httpClient, logger)
+	rules := rules.NewRules(appConfig.TconfigdUrl, appConfig.ServiceName, httpClient, logger)
 
 	err = rules.Fetch()
 	if err != nil {
 		logger.Fatal("Error fetching verification rules:", zap.Error(err))
 	}
 
-	tratSignatureVerifier := trat.NewSignatureVerifier(appConfig.TraTsAudience, appConfig.TraTsIssuer)
-
 	app := &App{
-		Router:                mux.NewRouter(),
-		Config:                appConfig,
-		HttpClient:            httpClient,
-		Rules:                 rules,
-		TraTSignatureVerifier: tratSignatureVerifier,
-		Logger:                logger,
+		Router:     mux.NewRouter(),
+		Config:     appConfig,
+		HttpClient: httpClient,
+		Rules:      rules,
+		Logger:     logger,
 	}
 
-	appService := service.NewService(app.Config, app.Rules, app.TraTSignatureVerifier, app.Logger)
+	// Start listening for intercepted requested for verifying TraTs
+	tratInterceptor, err := tratinterceptor.NewTraTInterceptor(app.Config.ServicePort, 9070, app.Logger)
+	if err != nil {
+		logger.Fatal("Error starting request interceptor for verifying TraTs:", zap.Error(err))
+	}
+
+	go tratInterceptor.Start()
+
+	appService := service.NewService(app.Config, app.Rules, app.Logger)
 	appHandler := handler.NewHandlers(appService, app.Logger)
 
 	app.initializeRoutes(appHandler)
 
 	srv := &http.Server{
 		Handler:      app.Router,
-		Addr:         "0.0.0.0:9070",
+		Addr:         "0.0.0.0:9060",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
-	logger.Info("Starting server on 9070.")
-	log.Fatal(srv.ListenAndServe())
+	logger.Info("Starting agent server on 9060.")
+
+	if err := srv.ListenAndServe(); err != nil {
+		app.Logger.Fatal("Failed to start agent server", zap.Error(err))
+	}
 }
 
 func (a *App) initializeRoutes(handlers *handler.Handlers) {
