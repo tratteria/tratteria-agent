@@ -9,14 +9,14 @@ import (
 	"go.uber.org/zap"
 )
 
-type InterceptVerifier struct {
+type TraTInterceptor struct {
 	ServicePort int
 	ProxyPort   int
 	Proxy       *httputil.ReverseProxy
 	Logger      *zap.Logger
 }
 
-func NewTraTInterceptor(servicePort, proxyPort int, logger *zap.Logger) (*InterceptVerifier, error) {
+func NewTraTInterceptor(servicePort, proxyPort int, logger *zap.Logger) (*TraTInterceptor, error) {
 	originalAppURL := "http://localhost:" + strconv.Itoa(servicePort)
 
 	proxy, err := setupProxy(originalAppURL)
@@ -24,7 +24,7 @@ func NewTraTInterceptor(servicePort, proxyPort int, logger *zap.Logger) (*Interc
 		return nil, err
 	}
 
-	return &InterceptVerifier{
+	return &TraTInterceptor{
 		ServicePort: servicePort,
 		ProxyPort:   proxyPort,
 		Proxy:       proxy,
@@ -48,7 +48,7 @@ func setupProxy(target string) (*httputil.ReverseProxy, error) {
 	return proxy, nil
 }
 
-func (iv *InterceptVerifier) Start() {
+func (iv *TraTInterceptor) Start() {
 	mux := http.NewServeMux()
 	proxyWithMiddleware := iv.tratVerificationMiddleware(iv.Proxy)
 
@@ -67,7 +67,7 @@ func (iv *InterceptVerifier) Start() {
 	}
 }
 
-func (iv *InterceptVerifier) tratVerificationMiddleware(next http.Handler) http.Handler {
+func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Txn-Token")
 		if token == "" || !isValidToken(token) {
