@@ -4,23 +4,20 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 )
 
 type Config struct {
-	TconfigdUrl   *url.URL
-	Service       string
-	TraTsAudience string
-	TraTsIssuer   string
-	TraTsJWKS     string
+	TconfigdUrl *url.URL
+	ServiceName string
+	ServicePort int
 }
 
 func GetAppConfig() *Config {
 	return &Config{
-		TconfigdUrl:   parseURL(getEnv("TCONFIGD_URL")),
-		Service:       getEnv("SERVICE"),
-		TraTsAudience: getEnv("TRATS_AUDIENCE"),
-		TraTsIssuer:   getEnv("TRATS_ISSUER"),
-		TraTsJWKS:     getEnv("TTS_JWKS"),
+		TconfigdUrl: parseURL(getEnv("TCONFIGD_URL")),
+		ServiceName: getEnv("SERVICE_NAME"),
+		ServicePort: getEnvAsInt("SERVICE_PORT"),
 	}
 }
 
@@ -31,6 +28,15 @@ func getEnv(key string) string {
 	}
 
 	return value
+}
+
+func getEnvAsInt(key string) int {
+	valueStr := getEnv(key)
+	valueInt, err := strconv.Atoi(valueStr)
+	if err != nil {
+		panic(fmt.Sprintf("Error converting %s to integer: %v", key, err))
+	}
+	return valueInt
 }
 
 func parseURL(rawurl string) *url.URL {
