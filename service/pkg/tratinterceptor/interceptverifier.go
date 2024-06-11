@@ -37,6 +37,7 @@ func setupProxy(target string) (*httputil.ReverseProxy, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	proxy := httputil.NewSingleHostReverseProxy(url)
 	proxy.Director = func(req *http.Request) {
 		req.Header.Add("X-Forwarded-Host", req.Host)
@@ -45,6 +46,7 @@ func setupProxy(target string) (*httputil.ReverseProxy, error) {
 		req.URL.Host = url.Host
 		req.URL.Path = url.Path + req.URL.Path
 	}
+
 	return proxy, nil
 }
 
@@ -76,6 +78,7 @@ func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Ha
 
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
