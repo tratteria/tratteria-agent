@@ -33,9 +33,11 @@ func getEnv(key string) string {
 func getEnvAsInt(key string) int {
 	valueStr := getEnv(key)
 	valueInt, err := strconv.Atoi(valueStr)
+
 	if err != nil {
 		panic(fmt.Sprintf("Error converting %s to integer: %v", key, err))
 	}
+
 	return valueInt
 }
 
