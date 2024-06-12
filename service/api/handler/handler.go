@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/tratteria/tratteria-agent/pkg/service"
+	"github.com/tratteria/tratteria-agent/api/service"
 	"go.uber.org/zap"
 )
 
