@@ -1,30 +1,26 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/gorilla/mux"
-	"github.com/tratteria/tratteria-agent/handler"
-	"github.com/tratteria/tratteria-agent/pkg/config"
-	"github.com/tratteria/tratteria-agent/pkg/rules"
-	"github.com/tratteria/tratteria-agent/pkg/service"
-	"github.com/tratteria/tratteria-agent/pkg/trat"
-	"github.com/tratteria/tratteria-agent/pkg/tratinterceptor"
+	"github.com/tratteria/tratteria-agent/api"
+	"github.com/tratteria/tratteria-agent/config"
+	"github.com/tratteria/tratteria-agent/rules"
+	"github.com/tratteria/tratteria-agent/tratinterceptor"
 	"go.uber.org/zap"
 )
 
-type App struct {
-	Router                *mux.Router
-	Config                *config.Config
-	HttpClient            *http.Client
-	Rules                 *rules.Rules
-	TraTSignatureVerifier *trat.SignatureVerifier
-	Logger                *zap.Logger
-}
-
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	setupSignalHandler(cancel)
+
 	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Cannot initialize Zap logger: %v.", err)
@@ -37,51 +33,46 @@ func main() {
 	}()
 
 	appConfig := config.GetAppConfig()
-
 	httpClient := &http.Client{}
-
 	rules := rules.NewRules(appConfig.TconfigdUrl, appConfig.ServiceName, httpClient, logger)
 
 	err = rules.Fetch()
 	if err != nil {
-		logger.Fatal("Error fetching verification rules:", zap.Error(err))
+		logger.Fatal("Error fetching verification rules", zap.Error(err))
 	}
 
-	app := &App{
-		Router:     mux.NewRouter(),
-		Config:     appConfig,
-		HttpClient: httpClient,
-		Rules:      rules,
-		Logger:     logger,
-	}
+	go func() {
+		logger.Info("Starting API server...")
 
-	// Start listening for intercepted requested for verifying TraTs
-	tratInterceptor, err := tratinterceptor.NewTraTInterceptor(app.Config.ServicePort, 9070, app.Logger)
-	if err != nil {
-		logger.Fatal("Error starting request interceptor for verifying TraTs:", zap.Error(err))
-	}
+		apiServer := api.NewAPI(appConfig.TconfigdUrl, appConfig.ServiceName, rules, logger)
 
-	go tratInterceptor.Start()
+		if err := apiServer.Run(); err != nil {
+			logger.Fatal("API server failed.", zap.Error(err))
+		}
+	}()
 
-	appService := service.NewService(app.Config, app.Rules, app.Logger)
-	appHandler := handler.NewHandlers(appService, app.Logger)
+	go func() {
+		log.Println("Starting trat interceptor...")
 
-	app.initializeRoutes(appHandler)
+		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, 9070, logger)
+		if err != nil {
+			logger.Fatal("Error starting trat interceptor:", zap.Error(err))
+		}
 
-	srv := &http.Server{
-		Handler:      app.Router,
-		Addr:         "0.0.0.0:9060",
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-	}
+		tratInterceptor.Start()
+	}()
 
-	logger.Info("Starting agent server on 9060.")
+	<-ctx.Done()
 
-	if err := srv.ListenAndServe(); err != nil {
-		app.Logger.Fatal("Failed to start agent server", zap.Error(err))
-	}
+	log.Println("Shutting down api and interceptor...")
 }
 
-func (a *App) initializeRoutes(handlers *handler.Handlers) {
-	a.Router.HandleFunc("/verification-rules", handlers.GetVerificationRulesHandler).Methods("GET")
+func setupSignalHandler(cancel context.CancelFunc) {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigs
+		cancel()
+	}()
 }
