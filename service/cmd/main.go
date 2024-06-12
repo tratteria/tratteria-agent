@@ -47,7 +47,7 @@ func main() {
 		apiServer := api.NewAPI(appConfig.TconfigdUrl, appConfig.ServiceName, rules, logger)
 
 		if err := apiServer.Run(); err != nil {
-			logger.Fatal("API server failed.", zap.Error(err))
+			logger.Fatal("Failed to start API server.", zap.Error(err))
 		}
 	}()
 
@@ -56,10 +56,13 @@ func main() {
 
 		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, 9070, logger)
 		if err != nil {
-			logger.Fatal("Error starting trat interceptor:", zap.Error(err))
+			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
 		}
 
-		tratInterceptor.Start()
+		err = tratInterceptor.Start()
+		if err != nil {
+			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
+		}
 	}()
 
 	<-ctx.Done()

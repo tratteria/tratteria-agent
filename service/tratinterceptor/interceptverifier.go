@@ -1,6 +1,7 @@
 package tratinterceptor
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -50,7 +51,7 @@ func setupProxy(target string) (*httputil.ReverseProxy, error) {
 	return proxy, nil
 }
 
-func (iv *TraTInterceptor) Start() {
+func (iv *TraTInterceptor) Start() error {
 	mux := http.NewServeMux()
 	proxyWithMiddleware := iv.tratVerificationMiddleware(iv.Proxy)
 
@@ -62,18 +63,22 @@ func (iv *TraTInterceptor) Start() {
 		Handler: mux,
 	}
 
-	iv.Logger.Info("Starting intercept verifier server", zap.Int("proxy-port", iv.ProxyPort))
+	iv.Logger.Info(fmt.Sprintf("Starting trat interceptor server on %d...", iv.ProxyPort))
 
 	if err := server.ListenAndServe(); err != nil {
-		iv.Logger.Fatal("Failed to start intercept verifier server", zap.String("listenAddress", listenAddress), zap.Error(err))
+		iv.Logger.Error("Failed to start trat intercept.", zap.String("listenAddress", listenAddress), zap.Error(err))
+
+		return fmt.Errorf("failed to start trat interceptor: %w", err)
 	}
+
+	return nil
 }
 
 func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Txn-Token")
 		if token == "" || !isValidToken(token) {
-			iv.Logger.Warn("Invalid or missing token on request", zap.String("path", r.URL.Path))
+			iv.Logger.Error("Invalid or missing token on request", zap.String("endpoint", r.URL.Path))
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 
 			return
