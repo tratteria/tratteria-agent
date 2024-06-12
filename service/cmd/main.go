@@ -52,7 +52,7 @@ func main() {
 	}()
 
 	go func() {
-		log.Println("Starting trat interceptor...")
+		logger.Info("Starting trat interceptor...")
 
 		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, 9070, logger)
 		if err != nil {
@@ -64,7 +64,7 @@ func main() {
 
 	<-ctx.Done()
 
-	log.Println("Shutting down api and interceptor...")
+	logger.Info("Shutting down api and interceptor...")
 }
 
 func setupSignalHandler(cancel context.CancelFunc) {
