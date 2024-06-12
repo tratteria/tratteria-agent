@@ -43,9 +43,11 @@ func (api *API) Run() error {
 		ReadTimeout:  15 * time.Second,
 	}
 
-	api.Logger.Info("Starting agent server on 9060.")
+	api.Logger.Info(fmt.Sprintf("Starting api server on %d...", 9060))
 
 	if err := srv.ListenAndServe(); err != nil {
+		api.Logger.Error("Failed to start api server.", zap.Error(err))
+
 		return fmt.Errorf("failed to start api server: %w", err)
 	}
 
