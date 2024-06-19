@@ -1,21 +1,5 @@
 package rules
 
-import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
-	"path"
-	"time"
-
-	"go.uber.org/zap"
-)
-
-const (
-	MaxAttempts  = 5
-	InitialDelay = 500 * time.Millisecond
-)
-
 type VerificationRule struct {
 	Type    string `json:"type"`
 	Service string `json:"service"`
@@ -35,59 +19,28 @@ type VerificationAdzField struct {
 }
 
 type Rules struct {
-	tconfigdUrl       *url.URL
-	service           string
-	httpClient        *http.Client
 	verificationRules map[string]VerificationRule
-	logger            *zap.Logger
 }
 
-func NewRules(tconfigdUrl *url.URL, service string, httpClient *http.Client, logger *zap.Logger) *Rules {
+func NewRules() *Rules {
 	return &Rules{
-		tconfigdUrl:       tconfigdUrl,
-		service:           service,
-		httpClient:        httpClient,
 		verificationRules: make(map[string]VerificationRule),
-		logger:            logger,
 	}
 }
 
-func (r *Rules) Fetch() error {
-	endpoint := *r.tconfigdUrl
-	endpoint.Path = path.Join(endpoint.Path, "verification-rules")
+func (r *Rules) Apply() error {
+	// TODO
+	return nil
+}
 
-	query := endpoint.Query()
-	query.Set("service", r.service)
-	endpoint.RawQuery = query.Encode()
+func (r *Rules) Verify() (bool, error) {
+	// TODO
+	return true, nil
+}
 
-	delay := InitialDelay
-
-	for i := 0; i < MaxAttempts; i++ {
-		resp, err := r.httpClient.Get(endpoint.String())
-		if err == nil {
-			defer resp.Body.Close()
-
-			if resp.StatusCode == http.StatusOK {
-				if err := json.NewDecoder(resp.Body).Decode(&r.verificationRules); err != nil {
-					return fmt.Errorf("error decoding verification rules: %v", err)
-				}
-
-				return nil
-			}
-
-			resp.Body.Close()
-			r.logger.Error("Received non-OK HTTP status from tconfigd server %s\n", zap.String("status-code", resp.Status))
-		} else {
-			r.logger.Error("Error connecting to tconfigd server: %v\n", zap.Error(err))
-		}
-
-		if i < MaxAttempts-1 {
-			time.Sleep(delay)
-			delay *= 2
-		}
-	}
-
-	return fmt.Errorf("all attempts failed after %d tries", MaxAttempts)
+func (r *Rules) GetRulesVersionID() string {
+	// TODO
+	return ""
 }
 
 func (r *Rules) GetVerificationRule() map[string]VerificationRule {

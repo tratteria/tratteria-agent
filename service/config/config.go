@@ -8,16 +8,22 @@ import (
 )
 
 type Config struct {
-	TconfigdUrl *url.URL
-	ServiceName string
-	ServicePort int
+	TconfigdUrl              *url.URL
+	ServiceName              string
+	ServicePort              int
+	AgentApiPort             int
+	AgentInterceptorPort     int
+	HeartBeatIntervalMinutes int
 }
 
 func GetAppConfig() *Config {
 	return &Config{
-		TconfigdUrl: parseURL(getEnv("TCONFIGD_URL")),
-		ServiceName: getEnv("SERVICE_NAME"),
-		ServicePort: getEnvAsInt("SERVICE_PORT"),
+		TconfigdUrl:              parseURL(getEnv("TCONFIGD_URL")),
+		ServiceName:              getEnv("SERVICE_NAME"),
+		ServicePort:              getEnvAsInt("SERVICE_PORT"),
+		AgentApiPort:             getEnvAsInt("AGENT_API_PORT"),
+		AgentInterceptorPort:     getEnvAsInt("AGENT_INTERCEPTOR_PORT"),
+		HeartBeatIntervalMinutes: getEnvAsInt("HEARTBEAT_INTERVAL_MINUTES"),
 	}
 }
 

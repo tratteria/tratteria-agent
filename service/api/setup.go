@@ -14,6 +14,7 @@ import (
 )
 
 type API struct {
+	ApiPort     int
 	TconfigdUrl *url.URL
 	ServiceName string
 	Rules       *rules.Rules
@@ -38,12 +39,12 @@ func (api *API) Run() error {
 
 	srv := &http.Server{
 		Handler:      router,
-		Addr:         "0.0.0.0:9060",
+		Addr:         fmt.Sprintf("0.0.0.0:%d", api.ApiPort),
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
-	api.Logger.Info(fmt.Sprintf("Starting api server on %d...", 9060))
+	api.Logger.Info(fmt.Sprintf("Starting api server on %d...", api.ApiPort))
 
 	if err := srv.ListenAndServe(); err != nil {
 		api.Logger.Error("Failed to start api server.", zap.Error(err))
@@ -56,4 +57,5 @@ func (api *API) Run() error {
 
 func initializeRoutes(router *mux.Router, handlers *handler.Handlers) {
 	router.HandleFunc("/verification-rules", handlers.GetVerificationRulesHandler).Methods("GET")
+	router.HandleFunc("/config-webhook", handlers.ConfigWebhookHandler).Methods("POST")
 }
