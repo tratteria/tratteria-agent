@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/tratteria/tratteria-agent/api"
 	"github.com/tratteria/tratteria-agent/config"
+	"github.com/tratteria/tratteria-agent/configsync"
 	"github.com/tratteria/tratteria-agent/rules"
 	"github.com/tratteria/tratteria-agent/tratinterceptor"
 	"go.uber.org/zap"
@@ -34,17 +36,30 @@ func main() {
 
 	appConfig := config.GetAppConfig()
 	httpClient := &http.Client{}
-	rules := rules.NewRules(appConfig.TconfigdUrl, appConfig.ServiceName, httpClient, logger)
+	rules := rules.NewRules()
+	configSyncClient := configsync.Client{
+		WebhookPort:       appConfig.AgentApiPort,
+		TconfigdUrl:       appConfig.TconfigdUrl,
+		ServiceName:       appConfig.ServiceName,
+		Rules:             rules,
+		HeartbeatInterval: time.Duration(appConfig.HeartBeatIntervalMinutes) * time.Minute,
+		HttpClient:        httpClient,
+		Logger:            logger,
+	}
 
-	err = rules.Fetch()
-	if err != nil {
-		logger.Fatal("Error fetching verification rules", zap.Error(err))
+	if err := configSyncClient.Start(); err != nil {
+		logger.Fatal("Error establishing communication with tconfigd", zap.Error(err))
 	}
 
 	go func() {
 		logger.Info("Starting API server...")
 
-		apiServer := api.NewAPI(appConfig.TconfigdUrl, appConfig.ServiceName, rules, logger)
+		apiServer := &api.API{
+			ApiPort:     appConfig.AgentApiPort,
+			TconfigdUrl: appConfig.TconfigdUrl,
+			ServiceName: appConfig.ServiceName,
+			Rules:       rules,
+			Logger:      logger}
 
 		if err := apiServer.Run(); err != nil {
 			logger.Fatal("Failed to start API server.", zap.Error(err))
@@ -54,7 +69,7 @@ func main() {
 	go func() {
 		logger.Info("Starting trat interceptor...")
 
-		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, 9070, logger)
+		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, appConfig.AgentInterceptorPort, logger)
 		if err != nil {
 			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
 		}

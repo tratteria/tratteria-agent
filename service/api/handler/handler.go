@@ -34,3 +34,9 @@ func (h *Handlers) GetVerificationRulesHandler(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusOK)
 	w.Write(response)
 }
+
+func (h *Handlers) ConfigWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info("Received pushed configuration updates")
+	// TODO: implement the configuration update
+	w.WriteHeader(http.StatusOK)
+}
