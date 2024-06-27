@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/tratteria/tratteria-agent/rules"
+	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 
@@ -20,13 +20,13 @@ const (
 )
 
 type Client struct {
-	WebhookPort       int
-	TconfigdUrl       *url.URL
-	ServiceName       string
-	Rules             *rules.Rules
-	HeartbeatInterval time.Duration
-	HttpClient        *http.Client
-	Logger            *zap.Logger
+	WebhookPort              int
+	TconfigdUrl              *url.URL
+	ServiceName              string
+	VerificationRulesManager v1alpha1.VerificationRulesManager
+	HeartbeatInterval        time.Duration
+	HttpClient               *http.Client
+	Logger                   *zap.Logger
 }
 
 type registrationRequest struct {
@@ -132,7 +132,7 @@ func (c *Client) startHeartbeat() {
 			IPAddress:      c.ServiceName,
 			Port:           c.WebhookPort,
 			ServiceName:    c.ServiceName,
-			RulesVersionID: c.Rules.GetRulesVersionID(),
+			RulesVersionID: c.VerificationRulesManager.GetRulesVersionId(),
 		}
 
 		heartBeatRequestJson, err := json.Marshal(heartBeatReq)
