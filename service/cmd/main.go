@@ -12,8 +12,10 @@ import (
 	"github.com/tratteria/tratteria-agent/api"
 	"github.com/tratteria/tratteria-agent/config"
 	"github.com/tratteria/tratteria-agent/configsync"
-	"github.com/tratteria/tratteria-agent/rules"
 	"github.com/tratteria/tratteria-agent/tratinterceptor"
+	"github.com/tratteria/tratteria-agent/tratteriatrustbundlemanager"
+	"github.com/tratteria/tratteria-agent/tratverifier"
+	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 
@@ -36,15 +38,17 @@ func main() {
 
 	appConfig := config.GetAppConfig()
 	httpClient := &http.Client{}
-	rules := rules.NewRules()
+	verificationRules := v1alpha1.NewVerificationRules()
+	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager()
+	tratVerifier := tratverifier.NewTraTVerifier(verificationRules, tratteriaTrustBundleManager)
 	configSyncClient := configsync.Client{
-		WebhookPort:       appConfig.AgentApiPort,
-		TconfigdUrl:       appConfig.TconfigdUrl,
-		ServiceName:       appConfig.ServiceName,
-		Rules:             rules,
-		HeartbeatInterval: time.Duration(appConfig.HeartBeatIntervalMinutes) * time.Minute,
-		HttpClient:        httpClient,
-		Logger:            logger,
+		WebhookPort:              appConfig.AgentApiPort,
+		TconfigdUrl:              appConfig.TconfigdUrl,
+		ServiceName:              appConfig.ServiceName,
+		VerificationRulesManager: verificationRules,
+		HeartbeatInterval:        time.Duration(appConfig.HeartBeatIntervalMinutes) * time.Minute,
+		HttpClient:               httpClient,
+		Logger:                   logger,
 	}
 
 	if err := configSyncClient.Start(); err != nil {
@@ -55,11 +59,12 @@ func main() {
 		logger.Info("Starting API server...")
 
 		apiServer := &api.API{
-			ApiPort:     appConfig.AgentApiPort,
-			TconfigdUrl: appConfig.TconfigdUrl,
-			ServiceName: appConfig.ServiceName,
-			Rules:       rules,
-			Logger:      logger}
+			ApiPort:                  appConfig.AgentApiPort,
+			TconfigdUrl:              appConfig.TconfigdUrl,
+			ServiceName:              appConfig.ServiceName,
+			VerificationRulesManager: verificationRules,
+			TraTVerifier:             tratVerifier,
+			Logger:                   logger}
 
 		if err := apiServer.Run(); err != nil {
 			logger.Fatal("Failed to start API server.", zap.Error(err))
@@ -69,7 +74,7 @@ func main() {
 	go func() {
 		logger.Info("Starting trat interceptor...")
 
-		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, appConfig.AgentInterceptorPort, logger)
+		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, appConfig.AgentInterceptorPort, tratVerifier, logger)
 		if err != nil {
 			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
 		}

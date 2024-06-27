@@ -9,29 +9,31 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tratteria/tratteria-agent/api/handler"
 	"github.com/tratteria/tratteria-agent/api/service"
-	"github.com/tratteria/tratteria-agent/rules"
+	"github.com/tratteria/tratteria-agent/tratverifier"
+	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 
 type API struct {
-	ApiPort     int
-	TconfigdUrl *url.URL
-	ServiceName string
-	Rules       *rules.Rules
-	Logger      *zap.Logger
+	ApiPort                  int
+	TconfigdUrl              *url.URL
+	ServiceName              string
+	VerificationRulesManager v1alpha1.VerificationRulesManager
+	TraTVerifier             *tratverifier.TraTVerifier
+	Logger                   *zap.Logger
 }
 
-func NewAPI(TconfigdUrl *url.URL, ServiceName string, Rules *rules.Rules, Logger *zap.Logger) *API {
+func NewAPI(tconfigdUrl *url.URL, serviceName string, verificationRulesManager v1alpha1.VerificationRulesManager, logger *zap.Logger) *API {
 	return &API{
-		TconfigdUrl: TconfigdUrl,
-		ServiceName: ServiceName,
-		Rules:       Rules,
-		Logger:      Logger,
+		TconfigdUrl:              tconfigdUrl,
+		ServiceName:              serviceName,
+		VerificationRulesManager: verificationRulesManager,
+		Logger:                   logger,
 	}
 }
 
 func (api *API) Run() error {
-	apiService := service.NewService(api.Rules, api.Logger)
+	apiService := service.NewService(api.VerificationRulesManager, api.Logger)
 	apiHandler := handler.NewHandlers(apiService, api.Logger)
 
 	router := mux.NewRouter()

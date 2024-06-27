@@ -2,9 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/tratteria/tratteria-agent/api/service"
+	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +38,29 @@ func (h *Handlers) GetVerificationRulesHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handlers) ConfigWebhookHandler(w http.ResponseWriter, r *http.Request) {
-	h.logger.Info("Received pushed configuration updates")
-	// TODO: implement the configuration update
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.logger.Error("Failed to read pushed verification rule request body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+	defer r.Body.Close()
+
+	var verificationRule v1alpha1.VerificationRule
+
+	if err := json.Unmarshal(body, &verificationRule); err != nil {
+		h.logger.Error("Failed to unmarshal pushed verification rule", zap.Error(err))
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	h.logger.Info("Received pushed verification rule",
+		zap.String("endpoint", verificationRule.Endpoint),
+		zap.String("method", verificationRule.Method))
+
+	h.service.AddVerificationRule(verificationRule)
+
 	w.WriteHeader(http.StatusOK)
 }
