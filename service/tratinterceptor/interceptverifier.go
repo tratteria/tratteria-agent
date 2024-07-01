@@ -1,12 +1,16 @@
 package tratinterceptor
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
 
+	"github.com/tratteria/tratteria-agent/common"
 	"github.com/tratteria/tratteria-agent/tratverifier"
 	"go.uber.org/zap"
 )
@@ -79,10 +83,39 @@ func (iv *TraTInterceptor) Start() error {
 
 func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Txn-Token")
-		if token == "" || !isValidToken(token) {
-			iv.logger.Error("Invalid or missing token on request", zap.String("endpoint", r.URL.Path))
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+		trat := r.Header.Get("Txn-Token")
+		if trat == "" {
+			iv.logger.Error("Trat missing in request", zap.String("endpoint", r.URL.Path), zap.String("method", r.Method))
+			http.Error(w, "Missing trat", http.StatusUnauthorized)
+
+			return
+		}
+
+		//TODO: handle keys with multiple values
+		queryParams := make(map[string]string)
+		for key, values := range r.URL.Query() {
+			queryParams[key] = values[0]
+		}
+
+		body, err := readAndReplaceBody(r)
+		if err != nil {
+			iv.logger.Error("Failed to read request body", zap.Error(err))
+			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+
+			return
+		}
+
+		valid, reason, err := iv.traTVerifier.VerifyTraT(r.Context(), trat, r.URL.Path, common.HttpMethod(r.Method), queryParams, r.Header, body)
+		if err != nil {
+			iv.logger.Error("Error validating trat", zap.Error(err))
+			http.Error(w, "Error validating trat", http.StatusInternalServerError)
+
+			return
+		}
+
+		if !valid {
+			iv.logger.Error("Invalid trat", zap.String("reason", reason))
+			http.Error(w, "Invalid trat", http.StatusUnauthorized)
 
 			return
 		}
@@ -91,7 +124,23 @@ func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Ha
 	})
 }
 
-func isValidToken(token string) bool {
-	// TODO: implement TraT verification
-	return true
+func readAndReplaceBody(r *http.Request) (json.RawMessage, error) {
+	if r.Body == nil {
+		return []byte("{}"), nil
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	r.Body.Close()
+
+	r.Body = io.NopCloser(bytes.NewBuffer(data))
+
+	if len(data) == 0 {
+		return []byte("{}"), nil
+	}
+
+	return data, nil
 }

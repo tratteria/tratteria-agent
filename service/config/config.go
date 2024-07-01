@@ -14,6 +14,7 @@ type Config struct {
 	AgentApiPort             int
 	AgentInterceptorPort     int
 	HeartBeatIntervalMinutes int
+	MyNamespace              string
 }
 
 func GetAppConfig() *Config {
@@ -24,6 +25,7 @@ func GetAppConfig() *Config {
 		AgentApiPort:             getEnvAsInt("AGENT_API_PORT"),
 		AgentInterceptorPort:     getEnvAsInt("AGENT_INTERCEPTOR_PORT"),
 		HeartBeatIntervalMinutes: getEnvAsInt("HEARTBEAT_INTERVAL_MINUTES"),
+		MyNamespace:              getEnv("MY_NAMESPACE"),
 	}
 }
 

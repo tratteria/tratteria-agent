@@ -1,13 +1,13 @@
-package trats
+package trat
 
 import "github.com/golang-jwt/jwt"
 
-type TxnToken struct {
-	Txn    string           `json:"txn"`
-	Sub    subject          `json:"sub"`
-	ReqCtx requesterContext `json:"req_ctx"`
-	Purp   string           `json:"purp"`
-	Azd    any              `json:"azd"`
+type TraT struct {
+	Txn    string                 `json:"txn"`
+	Sub    subject                `json:"sub"`
+	ReqCtx requesterContext       `json:"req_ctx"`
+	Purp   string                 `json:"purp"`
+	Azd    map[string]interface{} `json:"azd"`
 	jwt.StandardClaims
 }
 
