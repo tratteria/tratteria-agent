@@ -25,7 +25,7 @@ func NewHandlers(service *service.Service, logger *zap.Logger) *Handlers {
 func (h *Handlers) GetVerificationRulesHandler(w http.ResponseWriter, r *http.Request) {
 	verificationRulesJSON, err := h.service.GetVerificationRulesJSON()
 	if err != nil {
-		http.Error(w, "Failed to retrive verification rules JSON", http.StatusInternalServerError)
+		http.Error(w, "Failed to retrieve verification rules JSON", http.StatusInternalServerError)
 
 		return
 	}
