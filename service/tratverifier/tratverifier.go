@@ -69,13 +69,13 @@ func convertMapToJson(data map[string]string) (json.RawMessage, error) {
 	return json.RawMessage(bytes), nil
 }
 
-// TODO: handle keys with multiple values
+// TODO: handle keys with multiple values.
 func convertHeaderToJson(headers http.Header) (json.RawMessage, error) {
 	headerMap := make(map[string]string)
 	for key, values := range headers {
 		headerMap[key] = values[0]
 	}
-	
+
 	return convertMapToJson(headerMap)
 }
 

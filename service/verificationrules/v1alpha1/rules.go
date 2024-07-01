@@ -167,7 +167,7 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 
 	endpointRule, pathParameter, err := vri.matchRule(path, method)
 	if err != nil {
-		return false, fmt.Sprintf("trat verification rule not found for %s path and %s method", path, method), nil
+		return false, fmt.Sprintf("trat verification rule not found for %s path and %s method", path, method), err
 	}
 
 	if endpointRule.Purp != trat.Purp {
@@ -196,6 +196,7 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 
 func (vri *VerificationRulesImp) validateAzd(azdMapping AzdMapping, input map[string]interface{}, trat *trat.TraT) (bool, error) {
 	vri.logger.Info("testing", zap.Any("azd", azdMapping), zap.Any("trat", trat), zap.Any("input", input))
+
 	jsonInput, err := marshalToJson(input)
 	if err != nil {
 		return false, fmt.Errorf("failed to marshal %v input to JSON: %w", input, err)
@@ -240,14 +241,17 @@ func compareJSONClaims(a, b interface{}) bool {
 
 	jsonA, errA := json.Marshal(a)
 	jsonB, errB := json.Marshal(b)
+
 	if errA != nil || errB != nil {
 		return false
 	}
 
 	var objA, objB interface{}
+
 	if err := json.Unmarshal(jsonA, &objA); err != nil {
 		return false
 	}
+
 	if err := json.Unmarshal(jsonB, &objB); err != nil {
 		return false
 	}

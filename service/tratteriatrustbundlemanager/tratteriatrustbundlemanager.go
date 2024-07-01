@@ -71,5 +71,6 @@ func (tm *TratteriaTrustBundleManager) fetchAndUpdateKeys(ctx context.Context) e
 	}
 
 	tm.keySet = set
+
 	return nil
 }
