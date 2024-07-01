@@ -17,28 +17,53 @@ import (
 const (
 	MAX_REGISTRATION_ATTEMPTS       = 5
 	FAILED_HEARTBEAT_RETRY_INTERVAL = 5 * time.Second
+	REGISTRATION_PATH               = "register"
+	HEARTBEAT_PATH                  = "heartbeat"
 )
 
 type Client struct {
-	WebhookPort              int
-	TconfigdUrl              *url.URL
-	ServiceName              string
-	VerificationRulesManager v1alpha1.VerificationRulesManager
-	HeartbeatInterval        time.Duration
-	HttpClient               *http.Client
-	Logger                   *zap.Logger
+	webhookPort              int
+	webhookIP                string
+	tconfigdUrl              *url.URL
+	serviceName              string
+	namespace                string
+	verificationRulesManager v1alpha1.VerificationRulesManager
+	heartbeatInterval        time.Duration
+	httpClient               *http.Client
+	logger                   *zap.Logger
+}
+
+func NewClient(WebhookPort int, TconfigdUrl *url.URL, ServiceName string, namespace string, VerificationRulesManager v1alpha1.VerificationRulesManager, HeartbeatInterval time.Duration, HttpClient *http.Client, Logger *zap.Logger) (*Client, error) {
+	webhookIP, err := getLocalIP()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{
+		webhookPort:              WebhookPort,
+		webhookIP:                webhookIP,
+		tconfigdUrl:              TconfigdUrl,
+		serviceName:              ServiceName,
+		namespace:                namespace,
+		verificationRulesManager: VerificationRulesManager,
+		heartbeatInterval:        HeartbeatInterval,
+		httpClient:               HttpClient,
+		logger:                   Logger,
+	}, nil
 }
 
 type registrationRequest struct {
 	IPAddress   string `json:"ipAddress"`
 	Port        int    `json:"port"`
 	ServiceName string `json:"serviceName"`
+	Namespace   string `json:"namespace"`
 }
 
 type heartBeatRequest struct {
 	IPAddress      string `json:"ipAddress"`
 	Port           int    `json:"port"`
 	ServiceName    string `json:"serviceName"`
+	Namespace      string `json:"namespace"`
 	RulesVersionID string `json:"rulesVersionId"`
 }
 
@@ -47,9 +72,9 @@ func (c *Client) Start() error {
 		return fmt.Errorf("failed to register with tconfigd: %w", err)
 	}
 
-	c.Logger.Info("Successfully registered to tconfigd")
+	c.logger.Info("Successfully registered to tconfigd")
 
-	c.Logger.Info("Starting heartbeats to tconfigd...")
+	c.logger.Info("Starting heartbeats to tconfigd...")
 
 	go c.startHeartbeat()
 
@@ -61,7 +86,7 @@ func (c *Client) registerWithBackoff() error {
 
 	for {
 		if err := c.register(); err != nil {
-			c.Logger.Error("Registration failed", zap.Error(err))
+			c.logger.Error("Registration failed", zap.Error(err))
 
 			attempt++
 
@@ -71,7 +96,7 @@ func (c *Client) registerWithBackoff() error {
 
 			backoff := time.Duration(rand.Intn(1<<attempt)) * time.Second
 
-			c.Logger.Info("Retrying registration", zap.Duration("backoff", backoff), zap.Int("attempt", attempt))
+			c.logger.Info("Retrying registration", zap.Duration("backoff", backoff), zap.Int("attempt", attempt))
 
 			time.Sleep(backoff)
 
@@ -85,15 +110,11 @@ func (c *Client) registerWithBackoff() error {
 }
 
 func (c *Client) register() error {
-	localIP, err := getLocalIP()
-	if err != nil {
-		return fmt.Errorf("failed to get local IP address: %w", err)
-	}
-
 	registrationReq := registrationRequest{
-		IPAddress:   localIP,
-		Port:        c.WebhookPort,
-		ServiceName: c.ServiceName,
+		IPAddress:   c.webhookIP,
+		Port:        c.webhookPort,
+		ServiceName: c.serviceName,
+		Namespace:   c.namespace,
 	}
 
 	jsonData, err := json.Marshal(registrationReq)
@@ -101,7 +122,7 @@ func (c *Client) register() error {
 		return fmt.Errorf("failed to marshal registration data: %w", err)
 	}
 
-	registerEndpoint := c.TconfigdUrl.ResolveReference(&url.URL{Path: "agent-register"})
+	registerEndpoint := c.tconfigdUrl.ResolveReference(&url.URL{Path: REGISTRATION_PATH})
 
 	req, err := http.NewRequest(http.MethodPost, registerEndpoint.String(), bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -110,7 +131,7 @@ func (c *Client) register() error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HttpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send registration request: %w", err)
 	}
@@ -125,19 +146,20 @@ func (c *Client) register() error {
 }
 
 func (c *Client) startHeartbeat() {
-	heartbeatEndpoint := c.TconfigdUrl.ResolveReference(&url.URL{Path: "agent-heartbeat"})
+	heartbeatEndpoint := c.tconfigdUrl.ResolveReference(&url.URL{Path: HEARTBEAT_PATH})
 
 	for {
 		heartBeatReq := heartBeatRequest{
-			IPAddress:      c.ServiceName,
-			Port:           c.WebhookPort,
-			ServiceName:    c.ServiceName,
-			RulesVersionID: c.VerificationRulesManager.GetRulesVersionId(),
+			IPAddress:      c.webhookIP,
+			Port:           c.webhookPort,
+			ServiceName:    c.serviceName,
+			Namespace:      c.namespace,
+			RulesVersionID: c.verificationRulesManager.GetRulesVersionId(),
 		}
 
 		heartBeatRequestJson, err := json.Marshal(heartBeatReq)
 		if err != nil {
-			c.Logger.Error("Failed to marshal heartbeat request", zap.Error(err))
+			c.logger.Error("Failed to marshal heartbeat request", zap.Error(err))
 			time.Sleep(FAILED_HEARTBEAT_RETRY_INTERVAL)
 
 			continue
@@ -145,7 +167,7 @@ func (c *Client) startHeartbeat() {
 
 		req, err := http.NewRequest(http.MethodPost, heartbeatEndpoint.String(), bytes.NewBuffer(heartBeatRequestJson))
 		if err != nil {
-			c.Logger.Error("Failed to create heartbeat request", zap.Error(err))
+			c.logger.Error("Failed to create heartbeat request", zap.Error(err))
 			time.Sleep(FAILED_HEARTBEAT_RETRY_INTERVAL)
 
 			continue
@@ -153,9 +175,9 @@ func (c *Client) startHeartbeat() {
 
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := c.HttpClient.Do(req)
+		resp, err := c.httpClient.Do(req)
 		if err != nil {
-			c.Logger.Error("Failed to send heartbeat", zap.Error(err))
+			c.logger.Error("Failed to send heartbeat", zap.Error(err))
 			time.Sleep(FAILED_HEARTBEAT_RETRY_INTERVAL)
 
 			continue
@@ -163,16 +185,16 @@ func (c *Client) startHeartbeat() {
 			resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				c.Logger.Error("Received non-ok heartbeat response", zap.Int("status", resp.StatusCode))
+				c.logger.Error("Received non-ok heartbeat response", zap.Int("status", resp.StatusCode))
 				time.Sleep(FAILED_HEARTBEAT_RETRY_INTERVAL)
 
 				continue
 			} else {
-				c.Logger.Info("Heartbeat sent successfully")
+				c.logger.Info("Heartbeat sent successfully")
 			}
 		}
 
-		time.Sleep(c.HeartbeatInterval)
+		time.Sleep(c.heartbeatInterval)
 	}
 }
 

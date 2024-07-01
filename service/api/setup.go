@@ -59,5 +59,6 @@ func (api *API) Run() error {
 
 func initializeRoutes(router *mux.Router, handlers *handler.Handlers) {
 	router.HandleFunc("/verification-rules", handlers.GetVerificationRulesHandler).Methods("GET")
-	router.HandleFunc("/config-webhook", handlers.ConfigWebhookHandler).Methods("POST")
+	router.HandleFunc("/verification-endpoint-rule-webhook", handlers.VerificationEndpointRuleWebhookHandler).Methods("POST")
+	router.HandleFunc("/verification-token-rule-webhook", handlers.VerificationTokenRuleWebhookHandler).Methods("POST")
 }

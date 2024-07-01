@@ -38,17 +38,13 @@ func main() {
 
 	appConfig := config.GetAppConfig()
 	httpClient := &http.Client{}
-	verificationRules := v1alpha1.NewVerificationRules()
-	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager()
+	verificationRules := v1alpha1.NewVerificationRulesImp(logger)
+	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager(appConfig.TconfigdUrl, appConfig.MyNamespace)
 	tratVerifier := tratverifier.NewTraTVerifier(verificationRules, tratteriaTrustBundleManager)
-	configSyncClient := configsync.Client{
-		WebhookPort:              appConfig.AgentApiPort,
-		TconfigdUrl:              appConfig.TconfigdUrl,
-		ServiceName:              appConfig.ServiceName,
-		VerificationRulesManager: verificationRules,
-		HeartbeatInterval:        time.Duration(appConfig.HeartBeatIntervalMinutes) * time.Minute,
-		HttpClient:               httpClient,
-		Logger:                   logger,
+
+	configSyncClient, err := configsync.NewClient(appConfig.AgentApiPort, appConfig.TconfigdUrl, appConfig.ServiceName, appConfig.MyNamespace, verificationRules, time.Duration(appConfig.HeartBeatIntervalMinutes)*time.Minute, httpClient, logger)
+	if err != nil {
+		logger.Fatal("Error creating configuration sync client for tconfigd", zap.Error(err))
 	}
 
 	if err := configSyncClient.Start(); err != nil {

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"encoding/json"
+
 	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
@@ -17,10 +19,14 @@ func NewService(verificationRulesManager v1alpha1.VerificationRulesManager, logg
 	}
 }
 
-func (s *Service) GetVerificationRule() map[string]map[string]v1alpha1.VerificationRule {
-	return s.verificationRulesManager.GetRules()
+func (s *Service) GetVerificationRulesJSON() (json.RawMessage, error) {
+	return s.verificationRulesManager.GetRulesJSON()
 }
 
-func (s *Service) AddVerificationRule(pushedVerificationRule v1alpha1.VerificationRule) {
-	s.verificationRulesManager.AddRule(pushedVerificationRule)
+func (s *Service) AddVerificationEndpointRule(pushedVerificationEndpointRule v1alpha1.VerificationEndpointRule) error {
+	return s.verificationRulesManager.AddEndpointRule(pushedVerificationEndpointRule)
+}
+
+func (s *Service) UpdateVerificationTokenRule(pushedVerificationTokenRule v1alpha1.VerificationTokenRule) {
+	s.verificationRulesManager.UpdateTokenRule(pushedVerificationTokenRule)
 }
