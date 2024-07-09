@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tratteria/tratteria-agent/api"
 	"github.com/tratteria/tratteria-agent/config"
 	"github.com/tratteria/tratteria-agent/configsync"
@@ -18,6 +20,8 @@ import (
 	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
+
+const X509_SOURCE_TIMEOUT = 15 * time.Second
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -36,13 +40,29 @@ func main() {
 		}
 	}()
 
+	x509SrcCtx, cancel := context.WithTimeout(context.Background(), X509_SOURCE_TIMEOUT)
+	defer cancel()
+
+	x509Source, err := workloadapi.NewX509Source(x509SrcCtx)
+	if err != nil {
+		logger.Fatal("Failed to create X.509 source", zap.Error(err))
+	}
+
+	defer x509Source.Close()
+
 	appConfig := config.GetAppConfig()
-	httpClient := &http.Client{}
-	verificationRules := v1alpha1.NewVerificationRulesImp(logger)
-	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager(appConfig.TconfigdUrl, appConfig.MyNamespace)
+
+	tconfigdMtlsClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsconfig.MTLSClientConfig(x509Source, x509Source, tlsconfig.AuthorizeID(appConfig.TconfigdSpiffeId)),
+		},
+	}
+
+	verificationRules := v1alpha1.NewVerificationRulesImp()
+	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager(appConfig.TconfigdUrl, tconfigdMtlsClient, appConfig.MyNamespace)
 	tratVerifier := tratverifier.NewTraTVerifier(verificationRules, tratteriaTrustBundleManager)
 
-	configSyncClient, err := configsync.NewClient(appConfig.AgentApiPort, appConfig.TconfigdUrl, appConfig.ServiceName, appConfig.MyNamespace, verificationRules, time.Duration(appConfig.HeartBeatIntervalMinutes)*time.Minute, httpClient, logger)
+	configSyncClient, err := configsync.NewClient(appConfig.AgentHttpsApiPort, appConfig.TconfigdUrl, appConfig.TconfigdSpiffeId, appConfig.MyNamespace, verificationRules, time.Duration(appConfig.HeartBeatIntervalMinutes)*time.Minute, tconfigdMtlsClient, logger)
 	if err != nil {
 		logger.Fatal("Error creating configuration sync client for tconfigd", zap.Error(err))
 	}
@@ -52,14 +72,14 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("Starting API server...")
-
 		apiServer := &api.API{
-			ApiPort:                  appConfig.AgentApiPort,
+			HttpsApiPort:             appConfig.AgentHttpsApiPort,
+			HttpApiPort:              appConfig.AgentHttpApiPort,
 			TconfigdUrl:              appConfig.TconfigdUrl,
-			ServiceName:              appConfig.ServiceName,
+			TconfigdSpiffeId:         appConfig.TconfigdSpiffeId,
 			VerificationRulesManager: verificationRules,
 			TraTVerifier:             tratVerifier,
+			X509Source:               x509Source,
 			Logger:                   logger}
 
 		if err := apiServer.Run(); err != nil {
@@ -68,8 +88,6 @@ func main() {
 	}()
 
 	go func() {
-		logger.Info("Starting trat interceptor...")
-
 		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, appConfig.AgentInterceptorPort, tratVerifier, logger)
 		if err != nil {
 			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
@@ -83,7 +101,7 @@ func main() {
 
 	<-ctx.Done()
 
-	logger.Info("Shutting down api and interceptor...")
+	logger.Info("Shutting down tratteria agent...")
 }
 
 func setupSignalHandler(cancel context.CancelFunc) {

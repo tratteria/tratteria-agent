@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
@@ -25,44 +26,40 @@ type Client struct {
 	webhookPort              int
 	webhookIP                string
 	tconfigdUrl              *url.URL
-	serviceName              string
 	namespace                string
 	verificationRulesManager v1alpha1.VerificationRulesManager
 	heartbeatInterval        time.Duration
-	httpClient               *http.Client
+	tconfigdMtlsClient       *http.Client
 	logger                   *zap.Logger
 }
 
-func NewClient(WebhookPort int, TconfigdUrl *url.URL, ServiceName string, namespace string, VerificationRulesManager v1alpha1.VerificationRulesManager, HeartbeatInterval time.Duration, HttpClient *http.Client, Logger *zap.Logger) (*Client, error) {
+func NewClient(webhookPort int, tconfigdUrl *url.URL, tconfigdSpiffeId spiffeid.ID, namespace string, verificationRulesManager v1alpha1.VerificationRulesManager, heartbeatInterval time.Duration, tconfigdMtlsClient *http.Client, logger *zap.Logger) (*Client, error) {
 	webhookIP, err := getLocalIP()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		webhookPort:              WebhookPort,
+		webhookPort:              webhookPort,
 		webhookIP:                webhookIP,
-		tconfigdUrl:              TconfigdUrl,
-		serviceName:              ServiceName,
+		tconfigdUrl:              tconfigdUrl,
 		namespace:                namespace,
-		verificationRulesManager: VerificationRulesManager,
-		heartbeatInterval:        HeartbeatInterval,
-		httpClient:               HttpClient,
-		logger:                   Logger,
+		verificationRulesManager: verificationRulesManager,
+		heartbeatInterval:        heartbeatInterval,
+		tconfigdMtlsClient:       tconfigdMtlsClient,
+		logger:                   logger,
 	}, nil
 }
 
 type registrationRequest struct {
-	IPAddress   string `json:"ipAddress"`
-	Port        int    `json:"port"`
-	ServiceName string `json:"serviceName"`
-	Namespace   string `json:"namespace"`
+	IPAddress string `json:"ipAddress"`
+	Port      int    `json:"port"`
+	Namespace string `json:"namespace"`
 }
 
 type heartBeatRequest struct {
 	IPAddress      string `json:"ipAddress"`
 	Port           int    `json:"port"`
-	ServiceName    string `json:"serviceName"`
 	Namespace      string `json:"namespace"`
 	RulesVersionID string `json:"rulesVersionId"`
 }
@@ -111,10 +108,9 @@ func (c *Client) registerWithBackoff() error {
 
 func (c *Client) register() error {
 	registrationReq := registrationRequest{
-		IPAddress:   c.webhookIP,
-		Port:        c.webhookPort,
-		ServiceName: c.serviceName,
-		Namespace:   c.namespace,
+		IPAddress: c.webhookIP,
+		Port:      c.webhookPort,
+		Namespace: c.namespace,
 	}
 
 	jsonData, err := json.Marshal(registrationReq)
@@ -131,7 +127,7 @@ func (c *Client) register() error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.tconfigdMtlsClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send registration request: %w", err)
 	}
@@ -152,7 +148,6 @@ func (c *Client) startHeartbeat() {
 		heartBeatReq := heartBeatRequest{
 			IPAddress:      c.webhookIP,
 			Port:           c.webhookPort,
-			ServiceName:    c.serviceName,
 			Namespace:      c.namespace,
 			RulesVersionID: c.verificationRulesManager.GetRulesVersionId(),
 		}
@@ -175,7 +170,7 @@ func (c *Client) startHeartbeat() {
 
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.tconfigdMtlsClient.Do(req)
 		if err != nil {
 			c.logger.Error("Failed to send heartbeat", zap.Error(err))
 			time.Sleep(FAILED_HEARTBEAT_RETRY_INTERVAL)

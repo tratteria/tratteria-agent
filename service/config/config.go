@@ -5,13 +5,16 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
 type Config struct {
 	TconfigdUrl              *url.URL
-	ServiceName              string
+	TconfigdSpiffeId         spiffeid.ID
 	ServicePort              int
-	AgentApiPort             int
+	AgentHttpsApiPort        int
+	AgentHttpApiPort         int
 	AgentInterceptorPort     int
 	HeartBeatIntervalMinutes int
 	MyNamespace              string
@@ -20,9 +23,10 @@ type Config struct {
 func GetAppConfig() *Config {
 	return &Config{
 		TconfigdUrl:              parseURL(getEnv("TCONFIGD_URL")),
-		ServiceName:              getEnv("SERVICE_NAME"),
+		TconfigdSpiffeId:         spiffeid.RequireFromString(getEnv("TCONFIGD_SPIFFE_ID")),
 		ServicePort:              getEnvAsInt("SERVICE_PORT"),
-		AgentApiPort:             getEnvAsInt("AGENT_API_PORT"),
+		AgentHttpsApiPort:        getEnvAsInt("AGENT_HTTPS_API_PORT"),
+		AgentHttpApiPort:         getEnvAsInt("AGENT_HTTP_API_PORT"),
 		AgentInterceptorPort:     getEnvAsInt("AGENT_INTERCEPTOR_PORT"),
 		HeartBeatIntervalMinutes: getEnvAsInt("HEARTBEAT_INTERVAL_MINUTES"),
 		MyNamespace:              getEnv("MY_NAMESPACE"),
