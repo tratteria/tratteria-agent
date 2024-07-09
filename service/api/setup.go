@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tratteria/tratteria-agent/api/handler"
 	"github.com/tratteria/tratteria-agent/api/service"
 	"github.com/tratteria/tratteria-agent/tratverifier"
@@ -15,50 +18,90 @@ import (
 )
 
 type API struct {
-	ApiPort                  int
+	HttpsApiPort             int
+	HttpApiPort              int
 	TconfigdUrl              *url.URL
-	ServiceName              string
+	TconfigdSpiffeId         spiffeid.ID
 	VerificationRulesManager v1alpha1.VerificationRulesManager
 	TraTVerifier             *tratverifier.TraTVerifier
+	X509Source               *workloadapi.X509Source
 	Logger                   *zap.Logger
-}
-
-func NewAPI(tconfigdUrl *url.URL, serviceName string, verificationRulesManager v1alpha1.VerificationRulesManager, logger *zap.Logger) *API {
-	return &API{
-		TconfigdUrl:              tconfigdUrl,
-		ServiceName:              serviceName,
-		VerificationRulesManager: verificationRulesManager,
-		Logger:                   logger,
-	}
 }
 
 func (api *API) Run() error {
 	apiService := service.NewService(api.VerificationRulesManager, api.Logger)
-	apiHandler := handler.NewHandlers(apiService, api.Logger)
+	apiHandlers := handler.NewHandlers(apiService, api.Logger)
 
-	router := mux.NewRouter()
-	initializeRoutes(router, apiHandler)
+	errChan := make(chan error, 1)
 
-	srv := &http.Server{
-		Handler:      router,
-		Addr:         fmt.Sprintf("0.0.0.0:%d", api.ApiPort),
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+	go func() {
+		err := api.startHTTPServer(apiHandlers)
+		if err != nil {
+			api.Logger.Error("HTTP server exited with error", zap.Error(err))
+
+			errChan <- err
+		}
+
+		close(errChan)
+	}()
+
+	if err := api.startHTTPSServer(apiHandlers); err != nil {
+		api.Logger.Error("HTTPS server exited with error", zap.Error(err))
+
+		return err
 	}
 
-	api.Logger.Info(fmt.Sprintf("Starting api server on %d...", api.ApiPort))
-
-	if err := srv.ListenAndServe(); err != nil {
-		api.Logger.Error("Failed to start api server.", zap.Error(err))
-
-		return fmt.Errorf("failed to start api server: %w", err)
+	if err, ok := <-errChan; ok {
+		return err
 	}
 
 	return nil
 }
 
-func initializeRoutes(router *mux.Router, handlers *handler.Handlers) {
-	router.HandleFunc("/verification-rules", handlers.GetVerificationRulesHandler).Methods("GET")
-	router.HandleFunc("/verification-endpoint-rule-webhook", handlers.VerificationEndpointRuleWebhookHandler).Methods("POST")
-	router.HandleFunc("/verification-token-rule-webhook", handlers.VerificationTokenRuleWebhookHandler).Methods("POST")
+func (api *API) startHTTPServer(apiHandlers *handler.Handlers) error {
+	router := mux.NewRouter()
+	router.HandleFunc("/verification-rules", apiHandlers.GetVerificationRulesHandler).Methods("GET")
+
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         fmt.Sprintf("0.0.0.0:%d", api.HttpApiPort),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+	}
+
+	api.Logger.Info("Starting HTTP api server...", zap.Int("port", api.HttpApiPort))
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		api.Logger.Error("Failed to start the http api server", zap.Error(err))
+
+		return fmt.Errorf("failed to start the http api server :%w", err)
+	}
+
+	return nil
+}
+
+func (api *API) startHTTPSServer(apiHandlers *handler.Handlers) error {
+	router := mux.NewRouter()
+	router.HandleFunc("/verification-endpoint-rule-webhook", apiHandlers.VerificationEndpointRuleWebhookHandler).Methods("POST")
+	router.HandleFunc("/verification-token-rule-webhook", apiHandlers.VerificationTokenRuleWebhookHandler).Methods("POST")
+
+	serverTLSConfig := tlsconfig.MTLSServerConfig(api.X509Source, api.X509Source, tlsconfig.AuthorizeID(api.TconfigdSpiffeId))
+
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         fmt.Sprintf("0.0.0.0:%d", api.HttpsApiPort),
+		TLSConfig:    serverTLSConfig,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+	}
+
+	api.Logger.Info("Starting HTTPS api server...", zap.Int("port", api.HttpsApiPort))
+
+	if err := srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+		api.Logger.Error("Failed to start the https api server", zap.Error(err))
+
+		return fmt.Errorf("failed to start the https api server :%w", err)
+	}
+
+	return nil
 }

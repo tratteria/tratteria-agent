@@ -70,7 +70,7 @@ func (iv *TraTInterceptor) Start() error {
 		Handler: mux,
 	}
 
-	iv.logger.Info(fmt.Sprintf("Starting trat interceptor server on %d...", iv.proxyPort))
+	iv.logger.Info("Starting trat interceptor server...", zap.Int("port", iv.proxyPort))
 
 	if err := server.ListenAndServe(); err != nil {
 		iv.logger.Error("Failed to start trat intercept.", zap.String("listenAddress", listenAddress), zap.Error(err))

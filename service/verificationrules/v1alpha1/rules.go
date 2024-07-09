@@ -12,7 +12,6 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tratteria/tratteria-agent/common"
 	"github.com/tratteria/tratteria-agent/trat"
-	"go.uber.org/zap"
 )
 
 type VerificationRulesManager interface {
@@ -66,15 +65,13 @@ func NewVerificationRules() *VerificationRules {
 }
 
 type VerificationRulesImp struct {
-	rules  *VerificationRules
-	mu     sync.RWMutex
-	logger *zap.Logger
+	rules *VerificationRules
+	mu    sync.RWMutex
 }
 
-func NewVerificationRulesImp(logger *zap.Logger) *VerificationRulesImp {
+func NewVerificationRulesImp() *VerificationRulesImp {
 	return &VerificationRulesImp{
-		rules:  NewVerificationRules(),
-		logger: logger,
+		rules: NewVerificationRules(),
 	}
 }
 
@@ -195,8 +192,6 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 }
 
 func (vri *VerificationRulesImp) validateAzd(azdMapping AzdMapping, input map[string]interface{}, trat *trat.TraT) (bool, error) {
-	vri.logger.Info("testing", zap.Any("azd", azdMapping), zap.Any("trat", trat), zap.Any("input", input))
-
 	jsonInput, err := marshalToJson(input)
 	if err != nil {
 		return false, fmt.Errorf("failed to marshal %v input to JSON: %w", input, err)
