@@ -1,8 +1,84 @@
 # Tratteria Agent
+
 Sidecar agents for verifying TraTs in microservices.
 
-## Documentation
-For detailed documentation and setup guides please visit our official documentation page: [tratteria.io](https://tratteria.io)
+## How to Setup Tratteria Agent
+
+Tratteria agents are injected into microservices pods to verify TraTs. To integrate tratteria agent into a microservice, follow these steps:
+
+### Enable Tratteria in Namespace:
+
+Make sure tratteria is enabled in your namespace. Add the following label to the namespace to enable tratteria:
+
+```yaml
+metadata:
+  name: [your-namespace]
+  labels:
+      tratteria-enabled: "true"
+```
+
+### Add Tratteria Annotations in the Microservice Deployment Resource:
+
+Include the below annotations in the microservice deployment resource:
+
+```yaml
+annotations:
+  tratteria/inject-sidecar: "true" # Set this to true to inject the agent
+  tratteria/service-port: "8090"  # The port your microservice uses for incoming requests
+```
+
+### Operating Modes
+
+Tratteria agent can be configured to operate in two modes:
+
+#### Interception Mode:
+
+Tratteria agents intercept incoming requests, extract the TraT from the `Txn-Token` header, verifie it, and forward the trat-verified request to the microservice.
+
+To enable this mode, set `enableTratInterception` to `true` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
+
+#### Delegation Mode:
+
+In this mode, incoming requests are not intercepted; instead, requests must be made to the agent’s endpoint for verifying a trat. The agent then responds with the verification result.
+
+**Endpoint**: `POST /verify-trat`
+
+**Request Format**:
+```json
+{
+    "endpoint": "request URL path",
+    "method": "request HTTP method",
+    "body": "request JSON payload",
+    "headers": "JSON object of request HTTP headers",
+    "queryParameters": "JSON object of request URL query parameters"
+}
+```
+
+**Response Format**:
+
+Valid trat response:
+
+```json
+{
+  "valid": true
+}
+```
+
+Invalid trat response:
+
+```json
+{
+  "valid": false
+}
+```
+
+To enable this mode, set `enableTratInterception` to `false` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
+
+## Example Application
+For a practical deployment example, check out the [example application deployment setup](https://github.com/tratteria/example-application/tree/main/deploy).
+
+## Tratteria Documentation
+For detailed documentation and setup guides of tratteria please visit tratteria official documentation page: [tratteria.io](https://tratteria.io)
 
 ## Contribute to Tratteria
 Contributions to the project are welcome, including feature enhancements, bug fixes, and documentation improvements.
