@@ -35,15 +35,22 @@ Tratteria agent can be configured to operate in two modes:
 
 Tratteria agents intercept incoming requests, extract the TraT from the `Txn-Token` header, verifie it, and forward the trat-verified request to the microservice.
 
-To enable this mode, set `enableTratInterception` to `true` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
+To enable interception mode, set `enableTratInterception` to `true` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
 
 #### Delegation Mode:
 
 In this mode, incoming requests are not intercepted; instead, requests must be made to the agent’s endpoint for verifying a trat. The agent then responds with the verification result.
 
+**Delegation Endpoint Details**
+
 **Endpoint**: `POST /verify-trat`
 
-**Request Format**:
+This endpoint takes request data as input and responds with the result of the trat verification.
+
+**Request Body**:
+
+Structure:
+
 ```json
 {
     "endpoint": "request URL path",
@@ -53,6 +60,25 @@ In this mode, incoming requests are not intercepted; instead, requests must be m
     "queryParameters": "JSON object of request URL query parameters"
 }
 ```
+
+Example:
+
+```json
+{
+    "endpoint": "/order",
+    "method": "POST",
+    "body": {
+        "stockID": 12345,
+        "action": "buy",
+        "quantity": 100
+    },
+    "headers": {
+        "Content-Type": "application/json"
+    },
+    "queryParameters": {}
+}
+```
+
 
 **Response Format**:
 
@@ -72,7 +98,7 @@ Invalid trat response:
 }
 ```
 
-To enable this mode, set `enableTratInterception` to `false` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
+To enable delegation mode, set `enableTratInterception` to `false` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
 
 ## Example Application
 For a practical deployment example, check out the [example application deployment setup](https://github.com/tratteria/example-application/tree/main/deploy).
