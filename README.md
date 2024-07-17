@@ -33,9 +33,9 @@ Tratteria agent can be configured to operate in two modes:
 
 #### Interception Mode:
 
-Tratteria agents intercept incoming requests, extract the TraT from the `Txn-Token` header, verifie it, and forward the trat-verified request to the microservice.
+Tratteria agents intercept incoming requests, extract the TraT from the `Txn-Token` header, verify it, and forward the trat-verified request to the microservice.
 
-To enable interception mode, set `enableTratInterception` to `true` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#2-configure-tconfigd).
+To enable interception mode, set `enableTratInterception` to `true` in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#3-configure-tconfigd).
 
 #### Delegation Mode:
 

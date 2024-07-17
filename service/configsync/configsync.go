@@ -58,10 +58,9 @@ type registrationRequest struct {
 }
 
 type heartBeatRequest struct {
-	IPAddress      string `json:"ipAddress"`
-	Port           int    `json:"port"`
-	Namespace      string `json:"namespace"`
-	RulesVersionID string `json:"rulesVersionId"`
+	IPAddress string `json:"ipAddress"`
+	Port      int    `json:"port"`
+	Namespace string `json:"namespace"`
 }
 
 func (c *Client) Start() error {
@@ -106,6 +105,11 @@ func (c *Client) registerWithBackoff() error {
 	return nil
 }
 
+type registrationResponse struct {
+	HeartBeatIntervalMinutes int                                `json:"heartBeatIntervalMinutes"`
+	VerificationRules        v1alpha1.VerificationRulesTconfigd `json:"verificationRules"`
+}
+
 func (c *Client) register() error {
 	registrationReq := registrationRequest{
 		IPAddress: c.webhookIP,
@@ -138,6 +142,13 @@ func (c *Client) register() error {
 		return fmt.Errorf("registration failed with status %d", resp.StatusCode)
 	}
 
+	var registrationResp registrationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&registrationResp); err != nil {
+		return fmt.Errorf("failed to decode registration response: %w", err)
+	}
+
+	c.verificationRulesManager.UpdateCompleteRules(registrationResp.VerificationRules)
+
 	return nil
 }
 
@@ -146,10 +157,9 @@ func (c *Client) startHeartbeat() {
 
 	for {
 		heartBeatReq := heartBeatRequest{
-			IPAddress:      c.webhookIP,
-			Port:           c.webhookPort,
-			Namespace:      c.namespace,
-			RulesVersionID: c.verificationRulesManager.GetRulesVersionId(),
+			IPAddress: c.webhookIP,
+			Port:      c.webhookPort,
+			Namespace: c.namespace,
 		}
 
 		heartBeatRequestJson, err := json.Marshal(heartBeatReq)
