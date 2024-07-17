@@ -17,8 +17,8 @@ import (
 type VerificationRulesManager interface {
 	AddEndpointRule(VerificationEndpointRule) error
 	UpdateTokenRule(VerificationTokenRule)
+	UpdateCompleteRules(VerificationRulesTconfigd) error
 	GetRulesJSON() (json.RawMessage, error)
-	GetRulesVersionId() string
 }
 
 type VerificationRulesApplier interface {
@@ -46,9 +46,8 @@ type AzdField struct {
 type VerificationEndpointRules map[common.HttpMethod]map[string]VerificationEndpointRule
 
 type VerificationRules struct {
-	TokenRules     VerificationTokenRule     `json:"tokenRules"`
-	EndpointRules  VerificationEndpointRules `json:"endpointRules"`
-	RulesVersionId string                    `json:"rulesVersionId"`
+	TokenRules    *VerificationTokenRule    `json:"tokenRules"`
+	EndpointRules VerificationEndpointRules `json:"endpointRules"`
 }
 
 func NewVerificationRules() *VerificationRules {
@@ -59,7 +58,7 @@ func NewVerificationRules() *VerificationRules {
 	}
 
 	return &VerificationRules{
-		TokenRules:    VerificationTokenRule{},
+		TokenRules:    &VerificationTokenRule{},
 		EndpointRules: endpointRules,
 	}
 }
@@ -92,7 +91,7 @@ func (vri *VerificationRulesImp) UpdateTokenRule(tokenRule VerificationTokenRule
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	vri.rules.TokenRules = tokenRule
+	vri.rules.TokenRules = &tokenRule
 }
 
 func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
@@ -105,13 +104,6 @@ func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
 	}
 
 	return jsonData, nil
-}
-
-func (vri *VerificationRulesImp) GetRulesVersionId() string {
-	vri.mu.RLock()
-	defer vri.mu.RUnlock()
-
-	return vri.rules.RulesVersionId
 }
 
 // Read lock should be take by the function calling matchRule.
@@ -271,4 +263,30 @@ func marshalToJson(data map[string]interface{}) (string, error) {
 	}
 
 	return string(bytes), nil
+}
+
+type VerificationRulesTconfigd struct {
+	VerificationTokenRule     *VerificationTokenRule      `json:"verificationTokenRule"`
+	VerificationEndpointRules []*VerificationEndpointRule `json:"verificationEndpointRules"`
+}
+
+func (vri *VerificationRulesImp) UpdateCompleteRules(verificationRulesTconfigd VerificationRulesTconfigd) error {
+	vri.mu.Lock()
+	defer vri.mu.Unlock()
+
+	vri.rules.TokenRules = verificationRulesTconfigd.VerificationTokenRule
+
+	endpointRules := make(VerificationEndpointRules)
+
+	for _, method := range common.HttpMethodList {
+		endpointRules[method] = make(map[string]VerificationEndpointRule)
+	}
+
+	for _, endpointRule := range verificationRulesTconfigd.VerificationEndpointRules {
+		endpointRules[endpointRule.Method][endpointRule.Endpoint] = *endpointRule
+	}
+
+	vri.rules.EndpointRules = endpointRules
+
+	return nil
 }
