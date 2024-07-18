@@ -23,10 +23,10 @@ func (s *Service) GetVerificationRulesJSON() (json.RawMessage, error) {
 	return s.verificationRulesManager.GetRulesJSON()
 }
 
-func (s *Service) AddVerificationEndpointRule(pushedVerificationEndpointRule v1alpha1.VerificationEndpointRule) error {
-	return s.verificationRulesManager.AddEndpointRule(pushedVerificationEndpointRule)
+func (s *Service) AddVerificationEndpointRule(pushedVerificationEndpointRule v1alpha1.VerificationTraTRule) error {
+	return s.verificationRulesManager.AddTraTRule(pushedVerificationEndpointRule)
 }
 
-func (s *Service) UpdateVerificationTokenRule(pushedVerificationTokenRule v1alpha1.VerificationTokenRule) {
-	s.verificationRulesManager.UpdateTokenRule(pushedVerificationTokenRule)
+func (s *Service) UpdateVerificationTokenRule(pushedVerificationTokenRule v1alpha1.VerificationTratteriaConfigRule) {
+	s.verificationRulesManager.UpdateTratteriaConfigRule(pushedVerificationTokenRule)
 }

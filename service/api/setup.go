@@ -82,8 +82,8 @@ func (api *API) startHTTPServer(apiHandlers *handler.Handlers) error {
 
 func (api *API) startHTTPSServer(apiHandlers *handler.Handlers) error {
 	router := mux.NewRouter()
-	router.HandleFunc("/verification-endpoint-rule-webhook", apiHandlers.VerificationEndpointRuleWebhookHandler).Methods("POST")
-	router.HandleFunc("/verification-token-rule-webhook", apiHandlers.VerificationTokenRuleWebhookHandler).Methods("POST")
+	router.HandleFunc("/verification-trat-rule-webhook", apiHandlers.VerificationTraTRuleWebhookHandler).Methods("POST")
+	router.HandleFunc("/verification-tratteria-config-rule-webhook", apiHandlers.VerificationTratteriaConfigRuleWebhookHandler).Methods("POST")
 
 	serverTLSConfig := tlsconfig.MTLSServerConfig(api.X509Source, api.X509Source, tlsconfig.AuthorizeID(api.TconfigdSpiffeId))
 

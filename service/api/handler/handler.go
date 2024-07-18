@@ -35,10 +35,10 @@ func (h *Handlers) GetVerificationRulesHandler(w http.ResponseWriter, r *http.Re
 	w.Write(verificationRulesJSON)
 }
 
-func (h *Handlers) VerificationEndpointRuleWebhookHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) VerificationTraTRuleWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.Error("Failed to read pushed verification endpoint rule request body", zap.Error(err))
+		h.logger.Error("Failed to read pushed verification trat rule request body", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -46,22 +46,22 @@ func (h *Handlers) VerificationEndpointRuleWebhookHandler(w http.ResponseWriter,
 
 	defer r.Body.Close()
 
-	var verificationEndpointRule v1alpha1.VerificationEndpointRule
+	var verificationTraTRule v1alpha1.VerificationTraTRule
 
-	if err := json.Unmarshal(body, &verificationEndpointRule); err != nil {
-		h.logger.Error("Failed to unmarshal pushed verification endpoint rule", zap.Error(err))
+	if err := json.Unmarshal(body, &verificationTraTRule); err != nil {
+		h.logger.Error("Failed to unmarshal pushed verification trat rule", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	h.logger.Info("Received pushed verification endpoint rule",
-		zap.String("endpoint", verificationEndpointRule.Endpoint),
-		zap.Any("method", verificationEndpointRule.Method))
+	h.logger.Info("Received pushed verification trat rule",
+		zap.String("endpoint", verificationTraTRule.Endpoint),
+		zap.Any("method", verificationTraTRule.Method))
 
-	err = h.service.AddVerificationEndpointRule(verificationEndpointRule)
+	err = h.service.AddVerificationEndpointRule(verificationTraTRule)
 	if err != nil {
-		h.logger.Error("Failed to add pushed verification endpoint rule", zap.Error(err))
+		h.logger.Error("Failed to add pushed verification trat rule", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
@@ -70,10 +70,10 @@ func (h *Handlers) VerificationEndpointRuleWebhookHandler(w http.ResponseWriter,
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *Handlers) VerificationTokenRuleWebhookHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) VerificationTratteriaConfigRuleWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.Error("Failed to read pushed verification token rule request body", zap.Error(err))
+		h.logger.Error("Failed to read pushed verification tratteria config rule request body", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -81,18 +81,18 @@ func (h *Handlers) VerificationTokenRuleWebhookHandler(w http.ResponseWriter, r 
 
 	defer r.Body.Close()
 
-	var verificationTokenRule v1alpha1.VerificationTokenRule
+	var verificationTratteriaConfigRule v1alpha1.VerificationTratteriaConfigRule
 
-	if err := json.Unmarshal(body, &verificationTokenRule); err != nil {
-		h.logger.Error("Failed to unmarshal pushed verification token rule", zap.Error(err))
+	if err := json.Unmarshal(body, &verificationTratteriaConfigRule); err != nil {
+		h.logger.Error("Failed to unmarshal pushed verification tratteria config rule", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	h.logger.Info("Received pushed verification token rule")
+	h.logger.Info("Received pushed verification tratteria config rule")
 
-	h.service.UpdateVerificationTokenRule(verificationTokenRule)
+	h.service.UpdateVerificationTokenRule(verificationTratteriaConfigRule)
 
 	w.WriteHeader(http.StatusOK)
 }
