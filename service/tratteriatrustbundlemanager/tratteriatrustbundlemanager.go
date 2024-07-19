@@ -58,7 +58,7 @@ func (tm *TratteriaTrustBundleManager) GetJWK(ctx context.Context, keyID string)
 		return key, nil
 	}
 
-	return nil, fmt.Errorf("jwk not found: %w", tratteriaagenterrors.ErrNotFound)
+	return nil, tratteriaagenterrors.ErrInvalidKeyID
 }
 
 func (tm *TratteriaTrustBundleManager) fetchAndUpdateKeys(ctx context.Context) error {

@@ -97,6 +97,22 @@ func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Ha
 			queryParams[key] = values[0]
 		}
 
+		queryParamsJson, err := convertMapToJson(queryParams)
+		if err != nil {
+			iv.logger.Error("Failed to read request body: error reading query parameters", zap.Error(err))
+			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+
+			return
+		}
+
+		headersJson, err := convertHeaderToJson(r.Header)
+		if err != nil {
+			iv.logger.Error("Failed to read request body: error reading request header", zap.Error(err))
+			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+
+			return
+		}
+
 		body, err := readAndReplaceBody(r)
 		if err != nil {
 			iv.logger.Error("Failed to read request body", zap.Error(err))
@@ -105,7 +121,7 @@ func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Ha
 			return
 		}
 
-		valid, reason, err := iv.traTVerifier.VerifyTraT(r.Context(), trat, r.URL.Path, common.HttpMethod(r.Method), queryParams, r.Header, body)
+		valid, reason, err := iv.traTVerifier.VerifyTraT(r.Context(), trat, r.URL.Path, common.HttpMethod(r.Method), queryParamsJson, headersJson, body)
 		if err != nil {
 			iv.logger.Error("Error validating trat", zap.Error(err))
 			http.Error(w, "Error validating trat", http.StatusInternalServerError)
@@ -114,7 +130,7 @@ func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Ha
 		}
 
 		if !valid {
-			iv.logger.Error("Invalid trat", zap.String("reason", reason))
+			iv.logger.Error("Invalid trat", zap.String("endpoint", r.URL.Path), zap.String("method", r.Method), zap.String("reason", reason))
 			http.Error(w, "Invalid trat", http.StatusUnauthorized)
 
 			return
@@ -143,4 +159,27 @@ func readAndReplaceBody(r *http.Request) (json.RawMessage, error) {
 	}
 
 	return data, nil
+}
+
+// TODO: handle keys with multiple values.
+func convertHeaderToJson(headers http.Header) (json.RawMessage, error) {
+	headerMap := make(map[string]string)
+	for key, values := range headers {
+		headerMap[key] = values[0]
+	}
+
+	return convertMapToJson(headerMap)
+}
+
+func convertMapToJson(data map[string]string) (json.RawMessage, error) {
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(bytes) == 0 {
+		bytes = []byte("{}")
+	}
+
+	return json.RawMessage(bytes), nil
 }
