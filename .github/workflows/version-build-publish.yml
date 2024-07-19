@@ -77,3 +77,15 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ env.RELEASE_VERSION }}
             ghcr.io/${{ github.repository }}:latest
           outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=Tratteria Agent - Sidecar agent for validating TraTs
+      
+      - name: Build and push init container
+        uses: docker/build-push-action@v4
+        with:
+          context: agent-init
+          file: ./agent-init/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-init:${{ env.RELEASE_VERSION }}
+            ghcr.io/${{ github.repository }}-init:latest
+          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=Tratteria Agent Init Container - Initialization container for Tratteria Agents
