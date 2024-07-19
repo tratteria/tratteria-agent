@@ -3,10 +3,11 @@ package tratverifier
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/tratteria/tratteria-agent/common"
+	"github.com/tratteria/tratteria-agent/tratteriaagenterrors"
 	"github.com/tratteria/tratteria-agent/tratteriatrustbundlemanager"
 	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 
@@ -27,9 +28,14 @@ func NewTraTVerifier(verificationRulesApplier v1alpha1.VerificationRulesApplier,
 	}
 }
 
-func (tv *TraTVerifier) VerifyTraT(ctx context.Context, rawTrat string, path string, method common.HttpMethod, queryParameters map[string]string, headers http.Header, body json.RawMessage) (bool, string, error) {
+func (tv *TraTVerifier) VerifyTraT(ctx context.Context, rawTrat string, path string, method common.HttpMethod, queryParameters json.RawMessage, headers json.RawMessage, body json.RawMessage) (bool, string, error) {
 	valid, trat, err := tv.verifyTraTSignature(ctx, rawTrat)
+
 	if err != nil {
+		if errors.Is(err, tratteriaagenterrors.ErrInvalidKeyID) {
+			return false, "invalid trat signature", nil
+		}
+
 		return false, "", fmt.Errorf("couldn't verify trat signature: %w", err)
 	}
 
@@ -37,46 +43,13 @@ func (tv *TraTVerifier) VerifyTraT(ctx context.Context, rawTrat string, path str
 		return false, "invalid trat signature", nil
 	}
 
-	headersJson, err := convertHeaderToJson(headers)
-	if err != nil {
-		return false, "", fmt.Errorf("error reading request header")
-	}
-
-	queryParamsJson, err := convertMapToJson(queryParameters)
-	if err != nil {
-		return false, "", fmt.Errorf("error reading query parameters")
-	}
-
 	input := make(map[string]interface{})
 
 	input["body"] = body
-	input["headers"] = headersJson
-	input["queryParameters"] = queryParamsJson
+	input["headers"] = headers
+	input["queryParameters"] = queryParameters
 
 	return tv.verificationRulesApplier.ApplyRule(trat, path, method, input)
-}
-
-func convertMapToJson(data map[string]string) (json.RawMessage, error) {
-	bytes, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(bytes) == 0 {
-		bytes = []byte("{}")
-	}
-
-	return json.RawMessage(bytes), nil
-}
-
-// TODO: handle keys with multiple values.
-func convertHeaderToJson(headers http.Header) (json.RawMessage, error) {
-	headerMap := make(map[string]string)
-	for key, values := range headers {
-		headerMap[key] = values[0]
-	}
-
-	return convertMapToJson(headerMap)
 }
 
 func (tv *TraTVerifier) verifyTraTSignature(ctx context.Context, rawTrat string) (bool, *trat.TraT, error) {
@@ -87,7 +60,7 @@ func (tv *TraTVerifier) verifyTraTSignature(ctx context.Context, rawTrat string)
 
 		kid, ok := token.Header["kid"].(string)
 		if !ok {
-			return nil, fmt.Errorf("kid not found in token header")
+			return nil, fmt.Errorf("kid not present in token header")
 		}
 
 		key, err := tv.tratteriaTrustBundleManager.GetJWK(ctx, kid)
@@ -104,6 +77,10 @@ func (tv *TraTVerifier) verifyTraTSignature(ctx context.Context, rawTrat string)
 	})
 
 	if err != nil {
+		if validationErr, ok := err.(*jwt.ValidationError); ok && validationErr.Inner != nil {
+			return false, nil, validationErr.Inner
+		}
+
 		return false, nil, err
 	}
 

@@ -87,17 +87,23 @@ func main() {
 		}
 	}()
 
-	go func() {
-		tratInterceptor, err := tratinterceptor.NewTraTInterceptor(appConfig.ServicePort, appConfig.AgentInterceptorPort, tratVerifier, logger)
-		if err != nil {
-			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
+	if appConfig.InterceptionMode {
+		if appConfig.ServicePort == nil {
+			logger.Fatal("Failed to start tratinterceptor. Service port not provided.")
 		}
 
-		err = tratInterceptor.Start()
-		if err != nil {
-			logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
-		}
-	}()
+		go func() {
+			tratInterceptor, err := tratinterceptor.NewTraTInterceptor(*appConfig.ServicePort, appConfig.AgentInterceptorPort, tratVerifier, logger)
+			if err != nil {
+				logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
+			}
+
+			err = tratInterceptor.Start()
+			if err != nil {
+				logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
+			}
+		}()
+	}
 
 	<-ctx.Done()
 

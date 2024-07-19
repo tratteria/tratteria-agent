@@ -29,7 +29,7 @@ type API struct {
 }
 
 func (api *API) Run() error {
-	apiService := service.NewService(api.VerificationRulesManager, api.Logger)
+	apiService := service.NewService(api.VerificationRulesManager, api.TraTVerifier, api.Logger)
 	apiHandlers := handler.NewHandlers(apiService, api.Logger)
 
 	errChan := make(chan error, 1)
@@ -61,6 +61,7 @@ func (api *API) Run() error {
 func (api *API) startHTTPServer(apiHandlers *handler.Handlers) error {
 	router := mux.NewRouter()
 	router.HandleFunc("/verification-rules", apiHandlers.GetVerificationRulesHandler).Methods("GET")
+	router.HandleFunc("/verify-trat", apiHandlers.VerifyTraTHandler).Methods("POST")
 
 	srv := &http.Server{
 		Handler:      router,
