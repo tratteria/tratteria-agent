@@ -161,6 +161,7 @@ func (h *Handlers) VerifyTraTHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !valid {
 		verifyTraTResponse.Valid = false
+
 		h.logger.Error("Invalid trat", zap.String("endpoint", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)), zap.String("reason", reason))
 	} else {
 		verifyTraTResponse.Valid = true
