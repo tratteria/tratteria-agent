@@ -39,7 +39,7 @@ To enable interception mode, set `enableTratInterception` to `true` in the [tcon
 
 #### Delegation Mode:
 
-In this mode, incoming requests are not intercepted; instead, requests must be made to the agent’s endpoint for verifying a trat. The agent then responds with the verification result.
+In this mode, incoming requests are not intercepted; instead, requests must be made to the agent’s endpoint for verifying a trat. The agent then responds with the verification result. This mode is suitable for environments where intercepting requests is not possible or desired, for example, in environments with a service mesh that is already intercepting incoming requests.
 
 **Delegation Endpoint Details**
 
