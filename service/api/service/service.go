@@ -28,14 +28,6 @@ func (s *Service) GetVerificationRulesJSON() (json.RawMessage, error) {
 	return s.verificationRulesManager.GetRulesJSON()
 }
 
-func (s *Service) AddVerificationEndpointRule(pushedVerificationEndpointRule v1alpha1.VerificationTraTRule) error {
-	return s.verificationRulesManager.AddTraTRule(pushedVerificationEndpointRule)
-}
-
-func (s *Service) UpdateVerificationTokenRule(pushedVerificationTokenRule v1alpha1.VerificationTratteriaConfigRule) {
-	s.verificationRulesManager.UpdateTratteriaConfigRule(pushedVerificationTokenRule)
-}
-
 func (s *Service) VerifyTraT(ctx context.Context, rawTrat string, path string, method common.HttpMethod, queryParameters json.RawMessage, headers json.RawMessage, body json.RawMessage) (bool, string, error) {
 	return s.traTVerifier.VerifyTraT(ctx, rawTrat, path, method, queryParameters, headers, body)
 }

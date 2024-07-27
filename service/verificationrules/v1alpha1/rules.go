@@ -15,9 +15,9 @@ import (
 )
 
 type VerificationRulesManager interface {
-	AddTraTRule(VerificationTraTRule) error
-	UpdateTratteriaConfigRule(VerificationTratteriaConfigRule)
-	UpdateCompleteRules(VerificationRulesTconfigd) error
+	AddTraTRule(TraTVerificationRule) error
+	UpdateTratteriaConfigRule(TratteriaConfigVerificationRule)
+	UpdateCompleteRules(*TconfigdVerificationRules)
 	GetRulesJSON() (json.RawMessage, error)
 }
 
@@ -25,12 +25,12 @@ type VerificationRulesApplier interface {
 	ApplyRule(trat *trat.TraT, path string, method common.HttpMethod, input map[string]interface{}) (bool, string, error)
 }
 
-type VerificationTratteriaConfigRule struct {
+type TratteriaConfigVerificationRule struct {
 	Issuer   string `json:"issuer"`
 	Audience string `json:"audience"`
 }
 
-type VerificationTraTRule struct {
+type TraTVerificationRule struct {
 	Endpoint   string            `json:"endpoint"`
 	Method     common.HttpMethod `json:"method"`
 	Purp       string            `json:"purp"`
@@ -43,22 +43,22 @@ type AzdField struct {
 	Value    string `json:"value"`
 }
 
-type VerificationTraTRules map[common.HttpMethod]map[string]VerificationTraTRule
+type TraTVerificationRules map[common.HttpMethod]map[string]TraTVerificationRule
 
 type VerificationRules struct {
-	TratteriaConfigRules *VerificationTratteriaConfigRule `json:"tratteriaConfigRules"`
-	TraTRules            VerificationTraTRules            `json:"traTRules"`
+	TratteriaConfigRules *TratteriaConfigVerificationRule `json:"tratteriaConfigRules"`
+	TraTRules            TraTVerificationRules            `json:"traTRules"`
 }
 
 func NewVerificationRules() *VerificationRules {
-	traTRules := make(VerificationTraTRules)
+	traTRules := make(TraTVerificationRules)
 
 	for _, method := range common.HttpMethodList {
-		traTRules[method] = make(map[string]VerificationTraTRule)
+		traTRules[method] = make(map[string]TraTVerificationRule)
 	}
 
 	return &VerificationRules{
-		TratteriaConfigRules: &VerificationTratteriaConfigRule{},
+		TratteriaConfigRules: &TratteriaConfigVerificationRule{},
 		TraTRules:            traTRules,
 	}
 }
@@ -74,7 +74,7 @@ func NewVerificationRulesImp() *VerificationRulesImp {
 	}
 }
 
-func (vri *VerificationRulesImp) AddTraTRule(verificationtraTRule VerificationTraTRule) error {
+func (vri *VerificationRulesImp) AddTraTRule(verificationtraTRule TraTVerificationRule) error {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
@@ -87,7 +87,7 @@ func (vri *VerificationRulesImp) AddTraTRule(verificationtraTRule VerificationTr
 	return nil
 }
 
-func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule VerificationTratteriaConfigRule) {
+func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule TratteriaConfigVerificationRule) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
@@ -107,10 +107,10 @@ func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
 }
 
 // Read lock should be take by the function calling matchRule.
-func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod) (VerificationTraTRule, map[string]string, error) {
+func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod) (TraTVerificationRule, map[string]string, error) {
 	methodRuleMap, ok := vri.rules.TraTRules[method]
 	if !ok {
-		return VerificationTraTRule{}, nil, fmt.Errorf("invalid HTTP method: %s", string(method))
+		return TraTVerificationRule{}, nil, fmt.Errorf("invalid HTTP method: %s", string(method))
 	}
 
 	for pattern, rule := range methodRuleMap {
@@ -133,7 +133,7 @@ func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod
 		}
 	}
 
-	return VerificationTraTRule{}, nil, errors.New("no matching rule found")
+	return TraTVerificationRule{}, nil, errors.New("no matching rule found")
 }
 
 func convertToRegex(template string) string {
@@ -265,28 +265,26 @@ func marshalToJson(data map[string]interface{}) (string, error) {
 	return string(bytes), nil
 }
 
-type VerificationRulesTconfigd struct {
-	VerificationTratteriaConfigRule *VerificationTratteriaConfigRule `json:"verificationTratteriaConfigRule"`
-	VerificationTraTRules           []*VerificationTraTRule          `json:"verificationTraTRules"`
+type TconfigdVerificationRules struct {
+	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule `json:"tratteriaConfigVerificationRule"`
+	TraTVerificationRules           []*TraTVerificationRule          `json:"traTVerificationRules"`
 }
 
-func (vri *VerificationRulesImp) UpdateCompleteRules(verificationRulesTconfigd VerificationRulesTconfigd) error {
+func (vri *VerificationRulesImp) UpdateCompleteRules(tconfigdVerificationRules *TconfigdVerificationRules) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	vri.rules.TratteriaConfigRules = verificationRulesTconfigd.VerificationTratteriaConfigRule
+	vri.rules.TratteriaConfigRules = tconfigdVerificationRules.TratteriaConfigVerificationRule
 
-	traTRules := make(VerificationTraTRules)
+	traTRules := make(TraTVerificationRules)
 
 	for _, method := range common.HttpMethodList {
-		traTRules[method] = make(map[string]VerificationTraTRule)
+		traTRules[method] = make(map[string]TraTVerificationRule)
 	}
 
-	for _, endpointRule := range verificationRulesTconfigd.VerificationTraTRules {
+	for _, endpointRule := range tconfigdVerificationRules.TraTVerificationRules {
 		traTRules[endpointRule.Method][endpointRule.Endpoint] = *endpointRule
 	}
 
 	vri.rules.TraTRules = traTRules
-
-	return nil
 }

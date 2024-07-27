@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tratteria/tratteria-agent/api"
 	"github.com/tratteria/tratteria-agent/config"
@@ -52,38 +50,28 @@ func main() {
 
 	appConfig := config.GetAppConfig()
 
-	tconfigdMtlsClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsconfig.MTLSClientConfig(x509Source, x509Source, tlsconfig.AuthorizeID(appConfig.TconfigdSpiffeId)),
-		},
-	}
-
 	verificationRules := v1alpha1.NewVerificationRulesImp()
-	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager(appConfig.TconfigdUrl, tconfigdMtlsClient, appConfig.MyNamespace)
+	configSyncClient := configsync.NewClient(appConfig.TconfigdHost, appConfig.TconfigdSpiffeID, appConfig.MyNamespace, verificationRules, x509Source, logger)
+
+	go func() {
+		if err := configSyncClient.Start(ctx); err != nil {
+			logger.Fatal("Config sync client stopped with error", zap.Error(err))
+		}
+	}()
+
+	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager(configSyncClient, appConfig.MyNamespace)
+
 	tratVerifier := tratverifier.NewTraTVerifier(verificationRules, tratteriaTrustBundleManager)
-
-	configSyncClient, err := configsync.NewClient(appConfig.AgentHttpsApiPort, appConfig.TconfigdUrl, appConfig.TconfigdSpiffeId, appConfig.MyNamespace, verificationRules, time.Duration(appConfig.HeartBeatIntervalMinutes)*time.Minute, tconfigdMtlsClient, logger)
-	if err != nil {
-		logger.Fatal("Error creating configuration sync client for tconfigd", zap.Error(err))
-	}
-
-	if err := configSyncClient.Start(); err != nil {
-		logger.Fatal("Error establishing communication with tconfigd", zap.Error(err))
-	}
 
 	go func() {
 		apiServer := &api.API{
-			HttpsApiPort:             appConfig.AgentHttpsApiPort,
-			HttpApiPort:              appConfig.AgentHttpApiPort,
-			TconfigdUrl:              appConfig.TconfigdUrl,
-			TconfigdSpiffeId:         appConfig.TconfigdSpiffeId,
+			ApiPort:                  appConfig.AgentHttpApiPort,
 			VerificationRulesManager: verificationRules,
 			TraTVerifier:             tratVerifier,
-			X509Source:               x509Source,
 			Logger:                   logger}
 
 		if err := apiServer.Run(); err != nil {
-			logger.Fatal("Failed to start API server.", zap.Error(err))
+			logger.Fatal("Failed to start HTTP server.", zap.Error(err))
 		}
 	}()
 
