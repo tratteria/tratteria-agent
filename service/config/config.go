@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"strconv"
 
@@ -10,28 +9,24 @@ import (
 )
 
 type Config struct {
-	TconfigdUrl              *url.URL
-	TconfigdSpiffeId         spiffeid.ID
-	ServicePort              *int
-	InterceptionMode         bool
-	AgentHttpsApiPort        int
-	AgentHttpApiPort         int
-	AgentInterceptorPort     int
-	HeartBeatIntervalMinutes int
-	MyNamespace              string
+	TconfigdHost         string
+	TconfigdSpiffeID     spiffeid.ID
+	ServicePort          *int
+	InterceptionMode     bool
+	AgentHttpApiPort     int
+	AgentInterceptorPort int
+	MyNamespace          string
 }
 
 func GetAppConfig() *Config {
 	return &Config{
-		TconfigdUrl:              parseURL(getEnv("TCONFIGD_URL")),
-		TconfigdSpiffeId:         spiffeid.RequireFromString(getEnv("TCONFIGD_SPIFFE_ID")),
-		ServicePort:              getOptionalEnvAsInt("SERVICE_PORT"),
-		InterceptionMode:         getEnvAsBool("INTERCEPTION_MODE"),
-		AgentHttpsApiPort:        getEnvAsInt("AGENT_HTTPS_API_PORT"),
-		AgentHttpApiPort:         getEnvAsInt("AGENT_HTTP_API_PORT"),
-		AgentInterceptorPort:     getEnvAsInt("AGENT_INTERCEPTOR_PORT"),
-		HeartBeatIntervalMinutes: getEnvAsInt("HEARTBEAT_INTERVAL_MINUTES"),
-		MyNamespace:              getEnv("MY_NAMESPACE"),
+		TconfigdHost:         getEnv("TCONFIGD_HOST"),
+		TconfigdSpiffeID:     spiffeid.RequireFromString(getEnv("TCONFIGD_SPIFFE_ID")),
+		ServicePort:          getOptionalEnvAsInt("SERVICE_PORT"),
+		InterceptionMode:     getEnvAsBool("INTERCEPTION_MODE"),
+		AgentHttpApiPort:     getEnvAsInt("AGENT_HTTP_API_PORT"),
+		AgentInterceptorPort: getEnvAsInt("AGENT_INTERCEPTOR_PORT"),
+		MyNamespace:          getEnv("MY_NAMESPACE"),
 	}
 }
 
@@ -78,13 +73,4 @@ func getEnvAsBool(key string) bool {
 	}
 
 	return valueBool
-}
-
-func parseURL(rawurl string) *url.URL {
-	parsedURL, err := url.Parse(rawurl)
-	if err != nil {
-		panic(fmt.Sprintf("Error parsing URL %s: %v", rawurl, err))
-	}
-
-	return parsedURL
 }
