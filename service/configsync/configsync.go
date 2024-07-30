@@ -27,6 +27,7 @@ const (
 	CONNECTION_MAX_RETRIES     = 5
 	WRITE_WAIT                 = 10 * time.Second
 	PONG_WAIT                  = 60 * time.Second
+	PING_PERIOD                = (PONG_WAIT * 9) / 10
 	REQUEST_TIMEOUT            = 15 * time.Second
 )
 
@@ -54,8 +55,14 @@ const (
 	MessageTypeTraTVerificationRuleUpsertResponse            MessageType = "TRAT_VERIFICATION_RULE_UPSERT_RESPONSE"
 	MessageTypeTratteriaConfigVerificationRuleUpsertRequest  MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_REQUEST"
 	MessageTypeTratteriaConfigVerificationRuleUpsertResponse MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_RESPONSE"
+	MessageTypeRuleReconciliationRequest                     MessageType = "RULE_RECONCILIATION_REQUEST"
+	MessageTypeRuleReconciliationResponse                    MessageType = "RULE_RECONCILIATION_RESPONSE"
 	MessageTypeUnknown                                       MessageType = "UNKNOWN"
 )
+
+type PingData struct {
+	RuleHash string `json:"ruleHash"`
+}
 
 type Request struct {
 	ID      string          `json:"id"`
@@ -70,7 +77,7 @@ type Response struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-type InitialVerificationRulesResponsePayload struct {
+type AllActiveVerificationRulesPayload struct {
 	VerificationRules *v1alpha1.TconfigdVerificationRules `json:"verificationRules"`
 }
 
@@ -208,7 +215,7 @@ func (c *Client) connect(ctx context.Context) error {
 		return fmt.Errorf("received unexpected status code for initial rules response: %v", initialRuleResponse.Status)
 	}
 
-	var initialVerificationRulesResponsePayload InitialVerificationRulesResponsePayload
+	var initialVerificationRulesResponsePayload AllActiveVerificationRulesPayload
 
 	err = json.Unmarshal(initialRuleResponse.Payload, &initialVerificationRulesResponsePayload)
 	if err != nil {
@@ -240,10 +247,10 @@ func (c *Client) readPump() {
 	}()
 
 	c.conn.SetReadDeadline(time.Now().Add(PONG_WAIT))
-	c.conn.SetPingHandler(func(appData string) error {
+	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(PONG_WAIT))
 
-		return c.conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(WRITE_WAIT))
+		return nil
 	})
 
 	for {
@@ -266,7 +273,10 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) writePump() {
+	ticker := time.NewTicker(PING_PERIOD)
+
 	defer func() {
+		ticker.Stop()
 		c.close()
 	}()
 
@@ -281,6 +291,30 @@ func (c *Client) writePump() {
 
 			if err := c.writeMessage(websocket.TextMessage, message); err != nil {
 				c.logger.Error("Failed to write message.", zap.Error(err))
+
+				return
+			}
+		case <-ticker.C:
+			verificationHash, err := c.verificationRulesManager.GetVerificationRulesHash()
+			if err != nil {
+				c.logger.Error("Error getting verification rule hash.", zap.Error(err))
+
+				return
+			}
+
+			pingData := PingData{
+				RuleHash: verificationHash,
+			}
+
+			pingPayload, err := json.Marshal(pingData)
+			if err != nil {
+				c.logger.Error("Failed to marshal ping data", zap.Error(err))
+
+				return
+			}
+
+			if err := c.writeMessage(websocket.PingMessage, pingPayload); err != nil {
+				c.logger.Error("Failed to write ping message.", zap.Error(err))
 
 				return
 			}
@@ -307,7 +341,8 @@ func (c *Client) handleMessage(message []byte) {
 
 	switch temp.Type {
 	case MessageTypeTraTVerificationRuleUpsertRequest,
-		MessageTypeTratteriaConfigVerificationRuleUpsertRequest:
+		MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
+		MessageTypeRuleReconciliationRequest:
 		c.handleRequest(message)
 	case MessageTypeGetJWKSResponse:
 		c.handleResponse(message)
@@ -330,6 +365,8 @@ func (c *Client) handleRequest(message []byte) {
 	case MessageTypeTraTVerificationRuleUpsertRequest,
 		MessageTypeTratteriaConfigVerificationRuleUpsertRequest:
 		c.handleRuleUpsertRequest(request)
+	case MessageTypeRuleReconciliationRequest:
+		c.handleRuleReconciliationRequest(request)
 	default:
 		c.logger.Error("Received unknown or unexpected request type", zap.String("type", string(request.Type)))
 	}
@@ -408,6 +445,31 @@ func (c *Client) handleRuleUpsertRequest(request Request) {
 		)
 
 		return
+	}
+}
+
+func (c *Client) handleRuleReconciliationRequest(request Request) {
+	c.logger.Info("Received verification rules reconciliation request")
+
+	var verificationReconciliationRules AllActiveVerificationRulesPayload
+
+	if err := json.Unmarshal(request.Payload, &verificationReconciliationRules); err != nil {
+		c.logger.Error("Failed to unmarshal verification reconciliation rules", zap.Error(err))
+		c.sendErrorResponse(
+			request.ID,
+			MessageTypeRuleReconciliationResponse,
+			http.StatusBadRequest,
+			"error parsing reconciliation verification rules",
+		)
+
+		return
+	}
+
+	c.verificationRulesManager.UpdateCompleteRules(verificationReconciliationRules.VerificationRules)
+
+	err := c.sendResponse(request.ID, MessageTypeRuleReconciliationResponse, http.StatusOK, nil)
+	if err != nil {
+		c.logger.Error("Error sending verification rule reconciliation request response", zap.Error(err))
 	}
 }
 

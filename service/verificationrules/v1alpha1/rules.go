@@ -1,17 +1,21 @@
 package v1alpha1
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/tidwall/gjson"
 	"github.com/tratteria/tratteria-agent/common"
 	"github.com/tratteria/tratteria-agent/trat"
+	"github.com/tratteria/tratteria-agent/utils"
 )
 
 type VerificationRulesManager interface {
@@ -19,6 +23,7 @@ type VerificationRulesManager interface {
 	UpdateTratteriaConfigRule(TratteriaConfigVerificationRule)
 	UpdateCompleteRules(*TconfigdVerificationRules)
 	GetRulesJSON() (json.RawMessage, error)
+	GetVerificationRulesHash() (string, error)
 }
 
 type VerificationRulesApplier interface {
@@ -287,4 +292,91 @@ func (vri *VerificationRulesImp) UpdateCompleteRules(tconfigdVerificationRules *
 	}
 
 	vri.rules.TraTRules = traTRules
+}
+
+func (tconfigdVerificationRules *TconfigdVerificationRules) ComputeStableHash() (string, error) {
+	var sortErr error
+
+	sort.SliceStable(tconfigdVerificationRules.TraTVerificationRules, func(i, j int) bool {
+		if sortErr != nil {
+			return false
+		}
+
+		iJSON, err := json.Marshal(tconfigdVerificationRules.TraTVerificationRules[i])
+		if err != nil {
+			sortErr = fmt.Errorf("failed to marshal rule %d: %w", i, err)
+
+			return false
+		}
+
+		jJSON, err := json.Marshal(tconfigdVerificationRules.TraTVerificationRules[j])
+		if err != nil {
+			sortErr = fmt.Errorf("failed to marshal rule %d: %w", j, err)
+
+			return false
+		}
+
+		iStr, err := utils.CanonicalizeJSON(json.RawMessage(iJSON))
+		if err != nil {
+			sortErr = fmt.Errorf("failed to canonicalize rule %d: %w", i, err)
+
+			return false
+		}
+
+		jStr, err := utils.CanonicalizeJSON(json.RawMessage(jJSON))
+		if err != nil {
+			sortErr = fmt.Errorf("failed to canonicalize rule %d: %w", j, err)
+
+			return false
+		}
+
+		return iStr < jStr
+	})
+
+	if sortErr != nil {
+		return "", fmt.Errorf("error during sorting: %w", sortErr)
+	}
+
+	data, err := json.Marshal(tconfigdVerificationRules)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal rules: %w", err)
+	}
+
+	var jsonData interface{}
+
+	err = json.Unmarshal(data, &jsonData)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal for canonicalization: %w", err)
+	}
+
+	canonicalizedData, err := utils.CanonicalizeJSON(jsonData)
+	if err != nil {
+		return "", fmt.Errorf("failed to canonicalize JSON: %w", err)
+	}
+
+	hash := sha256.Sum256([]byte(canonicalizedData))
+
+	return hex.EncodeToString(hash[:]), nil
+}
+
+func (vri *VerificationRulesImp) GetVerificationRulesHash() (string, error) {
+	vri.mu.RLock()
+	defer vri.mu.RUnlock()
+
+	var tconfigdVerificationRules TconfigdVerificationRules
+
+	tconfigdVerificationRules.TratteriaConfigVerificationRule = vri.rules.TratteriaConfigRules
+
+	var traTVerificationRules []*TraTVerificationRule
+
+	for _, methodRules := range vri.rules.TraTRules {
+		for _, endpointRule := range methodRules {
+			ruleCopy := endpointRule
+			traTVerificationRules = append(traTVerificationRules, &ruleCopy)
+		}
+	}
+
+	tconfigdVerificationRules.TraTVerificationRules = traTVerificationRules
+
+	return tconfigdVerificationRules.ComputeStableHash()
 }
