@@ -32,14 +32,14 @@ func main() {
 	}
 	defer logging.Sync()
 
-	logger := logging.GetLogger("main")
+	mainLogger := logging.GetLogger("main")
 
 	x509SrcCtx, cancel := context.WithTimeout(context.Background(), X509_SOURCE_TIMEOUT)
 	defer cancel()
 
 	x509Source, err := workloadapi.NewX509Source(x509SrcCtx)
 	if err != nil {
-		logger.Fatal("Failed to create X.509 source", zap.Error(err))
+		mainLogger.Fatal("Failed to create X.509 source", zap.Error(err))
 	}
 
 	defer x509Source.Close()
@@ -51,7 +51,7 @@ func main() {
 
 	go func() {
 		if err := configSyncClient.Start(ctx); err != nil {
-			logger.Fatal("Config sync client stopped with error", zap.Error(err))
+			mainLogger.Fatal("Config sync client stopped with error", zap.Error(err))
 		}
 	}()
 
@@ -67,31 +67,31 @@ func main() {
 			Logger:                   logging.GetLogger("api-server")}
 
 		if err := apiServer.Run(); err != nil {
-			logger.Fatal("Failed to start HTTP server.", zap.Error(err))
+			mainLogger.Fatal("Failed to start HTTP server.", zap.Error(err))
 		}
 	}()
 
 	if appConfig.InterceptionMode {
 		if appConfig.ServicePort == nil {
-			logger.Fatal("Failed to start tratinterceptor. Service port not provided.")
+			mainLogger.Fatal("Failed to start tratinterceptor. Service port not provided.")
 		}
 
 		go func() {
 			tratInterceptor, err := tratinterceptor.NewTraTInterceptor(*appConfig.ServicePort, appConfig.AgentInterceptorPort, tratVerifier, logging.GetLogger("trat-interceptor"))
 			if err != nil {
-				logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
+				mainLogger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
 			}
 
 			err = tratInterceptor.Start()
 			if err != nil {
-				logger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
+				mainLogger.Fatal("Failed to start tratinterceptor.", zap.Error(err))
 			}
 		}()
 	}
 
 	<-ctx.Done()
 
-	logger.Info("Shutting down tratteria agent...")
+	mainLogger.Info("Shutting down tratteria agent...")
 }
 
 func setupSignalHandler(cancel context.CancelFunc) {
