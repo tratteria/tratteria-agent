@@ -78,7 +78,7 @@ type Response struct {
 }
 
 type AllActiveVerificationRulesPayload struct {
-	VerificationRules *v1alpha1.TconfigdVerificationRules `json:"verificationRules"`
+	VerificationRules *v1alpha1.VerificationRules `json:"verificationRules"`
 }
 
 func NewClient(tconfigdHost string, tconfigdSpiffeId spiffeid.ID, namespace string, verificationRulesManager v1alpha1.VerificationRulesManager, x509Source *workloadapi.X509Source, logger *zap.Logger) *Client {
@@ -359,7 +359,7 @@ func (c *Client) handleRequest(message []byte) {
 		return
 	}
 
-	c.logger.Info("Received request", zap.String("id", request.ID), zap.String("type", string(request.Type)))
+	c.logger.Debug("Received request", zap.String("id", request.ID), zap.String("type", string(request.Type)))
 
 	switch request.Type {
 	case MessageTypeTraTVerificationRuleUpsertRequest,
@@ -393,7 +393,7 @@ func (c *Client) handleRuleUpsertRequest(request Request) {
 			zap.String("endpoint", traTVerificationRule.Endpoint),
 			zap.String("method", string(traTVerificationRule.Method)))
 
-		err := c.verificationRulesManager.AddTraTRule(traTVerificationRule)
+		err := c.verificationRulesManager.UpsertTraTRule(traTVerificationRule)
 		if err != nil {
 			c.logger.Error("Failed to upsert trat verification rule", zap.Error(err))
 			c.sendErrorResponse(
