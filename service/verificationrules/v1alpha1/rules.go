@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 
@@ -19,9 +18,9 @@ import (
 )
 
 type VerificationRulesManager interface {
-	AddTraTRule(TraTVerificationRule) error
+	UpsertTraTRule(TraTVerificationRule) error
 	UpdateTratteriaConfigRule(TratteriaConfigVerificationRule)
-	UpdateCompleteRules(*TconfigdVerificationRules)
+	UpdateCompleteRules(*VerificationRules)
 	GetRulesJSON() (json.RawMessage, error)
 	GetVerificationRulesHash() (string, error)
 }
@@ -36,6 +35,7 @@ type TratteriaConfigVerificationRule struct {
 }
 
 type TraTVerificationRule struct {
+	TraTName   string            `json:"traTName"`
 	Endpoint   string            `json:"endpoint"`
 	Method     common.HttpMethod `json:"method"`
 	Purp       string            `json:"purp"`
@@ -48,62 +48,81 @@ type AzdField struct {
 	Value    string `json:"value"`
 }
 
-type TraTVerificationRules map[common.HttpMethod]map[string]TraTVerificationRule
+type IndexedTraTsVerificationRules map[common.HttpMethod]map[string]*TraTVerificationRule
 
 type VerificationRules struct {
-	TratteriaConfigRules *TratteriaConfigVerificationRule `json:"tratteriaConfigRules"`
-	TraTRules            TraTVerificationRules            `json:"traTRules"`
+	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule `json:"tratteriaConfigVerificationRule"`
+	TraTsVerificationRules          map[string]*TraTVerificationRule `json:"traTsVerificationRules"`
 }
 
 func NewVerificationRules() *VerificationRules {
-	traTRules := make(TraTVerificationRules)
-
-	for _, method := range common.HttpMethodList {
-		traTRules[method] = make(map[string]TraTVerificationRule)
-	}
-
 	return &VerificationRules{
-		TratteriaConfigRules: &TratteriaConfigVerificationRule{},
-		TraTRules:            traTRules,
+		TratteriaConfigVerificationRule: &TratteriaConfigVerificationRule{},
+		TraTsVerificationRules:          make(map[string]*TraTVerificationRule),
 	}
 }
 
 type VerificationRulesImp struct {
-	rules *VerificationRules
-	mu    sync.RWMutex
+	verificationRules             *VerificationRules
+	indexedTraTsVerificationRules IndexedTraTsVerificationRules
+	mu                            sync.RWMutex
 }
 
 func NewVerificationRulesImp() *VerificationRulesImp {
+	indexedTraTsVerificationRules := make(IndexedTraTsVerificationRules)
+
+	for _, method := range common.HttpMethodList {
+		indexedTraTsVerificationRules[method] = make(map[string]*TraTVerificationRule)
+	}
+
 	return &VerificationRulesImp{
-		rules: NewVerificationRules(),
+		verificationRules:             NewVerificationRules(),
+		indexedTraTsVerificationRules: indexedTraTsVerificationRules,
 	}
 }
 
-func (vri *VerificationRulesImp) AddTraTRule(verificationtraTRule TraTVerificationRule) error {
+func (vri *VerificationRulesImp) UpsertTraTRule(verificationtraTRule TraTVerificationRule) error {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	if _, exist := vri.rules.TraTRules[verificationtraTRule.Method]; !exist {
+	if _, exist := vri.indexedTraTsVerificationRules[verificationtraTRule.Method]; !exist {
 		return fmt.Errorf("invalid HTTP method: %s", string(verificationtraTRule.Method))
 	}
 
-	vri.rules.TraTRules[verificationtraTRule.Method][verificationtraTRule.Endpoint] = verificationtraTRule
+	vri.verificationRules.TraTsVerificationRules[verificationtraTRule.TraTName] = &verificationtraTRule
+
+	vri.indexTraTsVerificationRules()
 
 	return nil
+}
+
+// write lock should be taken my method calling indexTraTsGenerationRules.
+func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
+	indexedTraTsVerificationRules := make(IndexedTraTsVerificationRules)
+
+	for _, method := range common.HttpMethodList {
+		indexedTraTsVerificationRules[method] = make(map[string]*TraTVerificationRule)
+	}
+
+	for _, traTGenerationRules := range vri.verificationRules.TraTsVerificationRules {
+		indexedTraTsVerificationRules[traTGenerationRules.Method][traTGenerationRules.Endpoint] = traTGenerationRules
+	}
+
+	vri.indexedTraTsVerificationRules = indexedTraTsVerificationRules
 }
 
 func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule TratteriaConfigVerificationRule) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	vri.rules.TratteriaConfigRules = &tratteriaConfigRule
+	vri.verificationRules.TratteriaConfigVerificationRule = &tratteriaConfigRule
 }
 
 func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
 	vri.mu.RLock()
 	defer vri.mu.RUnlock()
 
-	jsonData, err := json.Marshal(vri.rules)
+	jsonData, err := json.Marshal(vri.verificationRules)
 	if err != nil {
 		return nil, err
 	}
@@ -112,10 +131,10 @@ func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
 }
 
 // Read lock should be take by the function calling matchRule.
-func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod) (TraTVerificationRule, map[string]string, error) {
-	methodRuleMap, ok := vri.rules.TraTRules[method]
+func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod) (*TraTVerificationRule, map[string]string, error) {
+	methodRuleMap, ok := vri.indexedTraTsVerificationRules[method]
 	if !ok {
-		return TraTVerificationRule{}, nil, fmt.Errorf("invalid HTTP method: %s", string(method))
+		return nil, nil, fmt.Errorf("invalid HTTP method: %s", string(method))
 	}
 
 	for pattern, rule := range methodRuleMap {
@@ -138,7 +157,7 @@ func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod
 		}
 	}
 
-	return TraTVerificationRule{}, nil, errors.New("no matching rule found")
+	return nil, nil, errors.New("no matching rule found")
 }
 
 func convertToRegex(template string) string {
@@ -151,11 +170,11 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 	vri.mu.RLock()
 	defer vri.mu.RUnlock()
 
-	if vri.rules.TratteriaConfigRules.Issuer != trat.Issuer {
+	if vri.verificationRules.TratteriaConfigVerificationRule.Issuer != trat.Issuer {
 		return false, "invalid issuer", nil
 	}
 
-	if vri.rules.TratteriaConfigRules.Audience != trat.Audience {
+	if vri.verificationRules.TratteriaConfigVerificationRule.Audience != trat.Audience {
 		return false, "invalid audience", nil
 	}
 
@@ -270,74 +289,17 @@ func marshalToJson(data map[string]interface{}) (string, error) {
 	return string(bytes), nil
 }
 
-type TconfigdVerificationRules struct {
-	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule `json:"tratteriaConfigVerificationRule"`
-	TraTVerificationRules           []*TraTVerificationRule          `json:"traTVerificationRules"`
-}
-
-func (vri *VerificationRulesImp) UpdateCompleteRules(tconfigdVerificationRules *TconfigdVerificationRules) {
+func (vri *VerificationRulesImp) UpdateCompleteRules(verificationRules *VerificationRules) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	vri.rules.TratteriaConfigRules = tconfigdVerificationRules.TratteriaConfigVerificationRule
+	vri.verificationRules = verificationRules
 
-	traTRules := make(TraTVerificationRules)
-
-	for _, method := range common.HttpMethodList {
-		traTRules[method] = make(map[string]TraTVerificationRule)
-	}
-
-	for _, endpointRule := range tconfigdVerificationRules.TraTVerificationRules {
-		traTRules[endpointRule.Method][endpointRule.Endpoint] = *endpointRule
-	}
-
-	vri.rules.TraTRules = traTRules
+	vri.indexTraTsVerificationRules()
 }
 
-func (tconfigdVerificationRules *TconfigdVerificationRules) ComputeStableHash() (string, error) {
-	var sortErr error
-
-	sort.SliceStable(tconfigdVerificationRules.TraTVerificationRules, func(i, j int) bool {
-		if sortErr != nil {
-			return false
-		}
-
-		iJSON, err := json.Marshal(tconfigdVerificationRules.TraTVerificationRules[i])
-		if err != nil {
-			sortErr = fmt.Errorf("failed to marshal rule %d: %w", i, err)
-
-			return false
-		}
-
-		jJSON, err := json.Marshal(tconfigdVerificationRules.TraTVerificationRules[j])
-		if err != nil {
-			sortErr = fmt.Errorf("failed to marshal rule %d: %w", j, err)
-
-			return false
-		}
-
-		iStr, err := utils.CanonicalizeJSON(json.RawMessage(iJSON))
-		if err != nil {
-			sortErr = fmt.Errorf("failed to canonicalize rule %d: %w", i, err)
-
-			return false
-		}
-
-		jStr, err := utils.CanonicalizeJSON(json.RawMessage(jJSON))
-		if err != nil {
-			sortErr = fmt.Errorf("failed to canonicalize rule %d: %w", j, err)
-
-			return false
-		}
-
-		return iStr < jStr
-	})
-
-	if sortErr != nil {
-		return "", fmt.Errorf("error during sorting: %w", sortErr)
-	}
-
-	data, err := json.Marshal(tconfigdVerificationRules)
+func (verificationRules *VerificationRules) ComputeStableHash() (string, error) {
+	data, err := json.Marshal(verificationRules)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal rules: %w", err)
 	}
@@ -363,20 +325,5 @@ func (vri *VerificationRulesImp) GetVerificationRulesHash() (string, error) {
 	vri.mu.RLock()
 	defer vri.mu.RUnlock()
 
-	var tconfigdVerificationRules TconfigdVerificationRules
-
-	tconfigdVerificationRules.TratteriaConfigVerificationRule = vri.rules.TratteriaConfigRules
-
-	var traTVerificationRules []*TraTVerificationRule
-
-	for _, methodRules := range vri.rules.TraTRules {
-		for _, endpointRule := range methodRules {
-			ruleCopy := endpointRule
-			traTVerificationRules = append(traTVerificationRules, &ruleCopy)
-		}
-	}
-
-	tconfigdVerificationRules.TraTVerificationRules = traTVerificationRules
-
-	return tconfigdVerificationRules.ComputeStableHash()
+	return vri.verificationRules.ComputeStableHash()
 }
