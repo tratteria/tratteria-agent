@@ -49,7 +49,7 @@ type AzdField struct {
 	Value    string `json:"value"`
 }
 
-type IndexedTraTsVerificationRules map[common.HttpMethod]map[string]*TraTVerificationRule
+type IndexedTraTsVerificationRules map[common.HttpMethod]map[string][]*TraTVerificationRule
 
 type VerificationRules struct {
 	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule `json:"tratteriaConfigVerificationRule"`
@@ -73,7 +73,7 @@ func NewVerificationRulesImp() *VerificationRulesImp {
 	indexedTraTsVerificationRules := make(IndexedTraTsVerificationRules)
 
 	for _, method := range common.HttpMethodList {
-		indexedTraTsVerificationRules[method] = make(map[string]*TraTVerificationRule)
+		indexedTraTsVerificationRules[method] = make(map[string][]*TraTVerificationRule)
 	}
 
 	return &VerificationRulesImp{
@@ -111,11 +111,19 @@ func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
 	indexedTraTsVerificationRules := make(IndexedTraTsVerificationRules)
 
 	for _, method := range common.HttpMethodList {
-		indexedTraTsVerificationRules[method] = make(map[string]*TraTVerificationRule)
+		indexedTraTsVerificationRules[method] = make(map[string][]*TraTVerificationRule)
 	}
 
-	for _, traTGenerationRules := range vri.verificationRules.TraTsVerificationRules {
-		indexedTraTsVerificationRules[traTGenerationRules.Method][traTGenerationRules.Endpoint] = traTGenerationRules
+	if vri.verificationRules == nil || vri.verificationRules.TraTsVerificationRules == nil {
+		vri.indexedTraTsVerificationRules = indexedTraTsVerificationRules
+
+		return
+	}
+
+	for _, traTVerificationRules := range vri.verificationRules.TraTsVerificationRules {
+		indexedTraTsVerificationRules[traTVerificationRules.Method][traTVerificationRules.Endpoint] = append(
+			indexedTraTsVerificationRules[traTVerificationRules.Method][traTVerificationRules.Endpoint],
+			traTVerificationRules)
 	}
 
 	vri.indexedTraTsVerificationRules = indexedTraTsVerificationRules
@@ -140,8 +148,8 @@ func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
 	return jsonData, nil
 }
 
-// Read lock should be take by the function calling matchRule.
-func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod) (*TraTVerificationRule, map[string]string, error) {
+// Read lock should be take by the function calling matchTraTsRules.
+func (vri *VerificationRulesImp) matchTraTsRules(path string, method common.HttpMethod) ([]*TraTVerificationRule, map[string]string, error) {
 	methodRuleMap, ok := vri.indexedTraTsVerificationRules[method]
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid HTTP method: %s", string(method))
@@ -188,33 +196,39 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 		return false, "invalid audience", nil
 	}
 
-	traTRule, pathParameter, err := vri.matchRule(path, method)
+	traTsRules, pathParameter, err := vri.matchTraTsRules(path, method)
 	if err != nil {
-		return false, fmt.Sprintf("trat verification rule not found for %s path and %s method", path, method), err
+		return false, fmt.Sprintf("trat verification rules not found for %s path and %s method", path, method), err
 	}
 
-	if traTRule.Purp != trat.Purp {
-		return false, "invalid purp", nil
-	}
-
-	for par, val := range pathParameter {
-		input[par] = val
-	}
-
-	if traTRule.AzdMapping == nil && trat.Azd == nil {
-		return true, "", nil
-	}
-
-	valid, err := vri.validateAzd(traTRule.AzdMapping, input, trat)
-	if err != nil {
-		return false, "", err
-	} else {
-		if !valid {
-			return false, "invalid azd", nil
+	for _, traTRule := range traTsRules {
+		if traTRule.Purp != trat.Purp {
+			continue
 		}
 
-		return valid, "", nil
+		for par, val := range pathParameter {
+			input[par] = val
+		}
+
+		if traTRule.AzdMapping == nil && trat.Azd == nil {
+			return true, "", nil
+		}
+
+		valid, err := vri.validateAzd(traTRule.AzdMapping, input, trat)
+		if err != nil {
+			continue
+		} else {
+			if !valid {
+				continue
+			}
+
+			return valid, "", nil
+		}
+
 	}
+
+	return false, "invalid authorization details", err
+
 }
 
 func (vri *VerificationRulesImp) validateAzd(azdMapping AzdMapping, input map[string]interface{}, trat *trat.TraT) (bool, error) {
