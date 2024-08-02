@@ -224,11 +224,9 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 
 			return valid, "", nil
 		}
-
 	}
 
 	return false, "invalid authorization details", err
-
 }
 
 func (vri *VerificationRulesImp) validateAzd(azdMapping AzdMapping, input map[string]interface{}, trat *trat.TraT) (bool, error) {
