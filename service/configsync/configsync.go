@@ -384,9 +384,9 @@ func (c *Client) handleRequest(message []byte) {
 func (c *Client) handleRuleUpsertRequest(request Request) {
 	switch request.Type {
 	case MessageTypeTraTVerificationRuleUpsertRequest:
-		var traTVerificationRule v1alpha1.TraTVerificationRule
+		var serviceTraTVerificationRule v1alpha1.ServiceTraTVerificationRules
 
-		if err := json.Unmarshal(request.Payload, &traTVerificationRule); err != nil {
+		if err := json.Unmarshal(request.Payload, &serviceTraTVerificationRule); err != nil {
 			c.logger.Error("Failed to unmarshal trat verification rule", zap.Error(err))
 			c.sendErrorResponse(
 				request.ID,
@@ -399,10 +399,9 @@ func (c *Client) handleRuleUpsertRequest(request Request) {
 		}
 
 		c.logger.Info("Received trat verification rule upsert request",
-			zap.String("endpoint", traTVerificationRule.Endpoint),
-			zap.String("method", string(traTVerificationRule.Method)))
+			zap.String("trat-name", serviceTraTVerificationRule.TraTName))
 
-		err := c.verificationRulesManager.UpsertTraTRule(traTVerificationRule)
+		err := c.verificationRulesManager.UpsertTraTRule(&serviceTraTVerificationRule)
 		if err != nil {
 			c.logger.Error("Failed to upsert trat verification rule", zap.Error(err))
 			c.sendErrorResponse(
@@ -437,7 +436,7 @@ func (c *Client) handleRuleUpsertRequest(request Request) {
 
 		c.logger.Info("Received tratteria config verification rule upsert request")
 
-		c.verificationRulesManager.UpdateTratteriaConfigRule(verificationTratteriaConfigRule)
+		c.verificationRulesManager.UpdateTratteriaConfigRule(&verificationTratteriaConfigRule)
 
 		err := c.sendResponse(request.ID, MessageTypeTraTVerificationRuleUpsertResponse, http.StatusOK, nil)
 		if err != nil {

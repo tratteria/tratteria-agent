@@ -18,8 +18,8 @@ import (
 )
 
 type VerificationRulesManager interface {
-	UpsertTraTRule(TraTVerificationRule) error
-	UpdateTratteriaConfigRule(TratteriaConfigVerificationRule)
+	UpsertTraTRule(*ServiceTraTVerificationRules) error
+	UpdateTratteriaConfigRule(*TratteriaConfigVerificationRule)
 	UpdateCompleteRules(*VerificationRules)
 	GetRulesJSON() (json.RawMessage, error)
 	GetVerificationRulesHash() (string, error)
@@ -43,6 +43,11 @@ type TraTVerificationRule struct {
 	AzdMapping AzdMapping        `json:"azdmapping,omitempty"`
 }
 
+type ServiceTraTVerificationRules struct {
+	TraTName              string
+	TraTVerificationRules []*TraTVerificationRule
+}
+
 type AzdMapping map[string]AzdField
 type AzdField struct {
 	Required bool   `json:"required"`
@@ -52,14 +57,14 @@ type AzdField struct {
 type IndexedTraTsVerificationRules map[common.HttpMethod]map[string][]*TraTVerificationRule
 
 type VerificationRules struct {
-	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule `json:"tratteriaConfigVerificationRule"`
-	TraTsVerificationRules          map[string]*TraTVerificationRule `json:"traTsVerificationRules"`
+	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule         `json:"tratteriaConfigVerificationRule"`
+	TraTsVerificationRules          map[string]*ServiceTraTVerificationRules `json:"traTsVerificationRules"`
 }
 
 func NewVerificationRules() *VerificationRules {
 	return &VerificationRules{
 		TratteriaConfigVerificationRule: &TratteriaConfigVerificationRule{},
-		TraTsVerificationRules:          make(map[string]*TraTVerificationRule),
+		TraTsVerificationRules:          make(map[string]*ServiceTraTVerificationRules),
 	}
 }
 
@@ -82,15 +87,17 @@ func NewVerificationRulesImp() *VerificationRulesImp {
 	}
 }
 
-func (vri *VerificationRulesImp) UpsertTraTRule(verificationtraTRule TraTVerificationRule) error {
+func (vri *VerificationRulesImp) UpsertTraTRule(serviceTraTVerificationRules *ServiceTraTVerificationRules) error {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	if _, exist := vri.indexedTraTsVerificationRules[verificationtraTRule.Method]; !exist {
-		return fmt.Errorf("invalid HTTP method: %s", string(verificationtraTRule.Method))
+	for _, traTVerificationRule := range serviceTraTVerificationRules.TraTVerificationRules {
+		if _, exist := vri.indexedTraTsVerificationRules[traTVerificationRule.Method]; !exist {
+			return fmt.Errorf("invalid HTTP method %s for %s trat", string(traTVerificationRule.Method), traTVerificationRule.TraTName)
+		}
 	}
 
-	vri.verificationRules.TraTsVerificationRules[verificationtraTRule.TraTName] = &verificationtraTRule
+	vri.verificationRules.TraTsVerificationRules[serviceTraTVerificationRules.TraTName] = serviceTraTVerificationRules
 
 	vri.indexTraTsVerificationRules()
 
@@ -120,20 +127,22 @@ func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
 		return
 	}
 
-	for _, traTVerificationRules := range vri.verificationRules.TraTsVerificationRules {
-		indexedTraTsVerificationRules[traTVerificationRules.Method][traTVerificationRules.Endpoint] = append(
-			indexedTraTsVerificationRules[traTVerificationRules.Method][traTVerificationRules.Endpoint],
-			traTVerificationRules)
+	for _, serviceTraTVerificationRules := range vri.verificationRules.TraTsVerificationRules {
+		for _, traTVerificationRule := range serviceTraTVerificationRules.TraTVerificationRules {
+			indexedTraTsVerificationRules[traTVerificationRule.Method][traTVerificationRule.Endpoint] = append(
+				indexedTraTsVerificationRules[traTVerificationRule.Method][traTVerificationRule.Endpoint],
+				traTVerificationRule)
+		}
 	}
 
 	vri.indexedTraTsVerificationRules = indexedTraTsVerificationRules
 }
 
-func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule TratteriaConfigVerificationRule) {
+func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule *TratteriaConfigVerificationRule) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	vri.verificationRules.TratteriaConfigVerificationRule = &tratteriaConfigRule
+	vri.verificationRules.TratteriaConfigVerificationRule = tratteriaConfigRule
 }
 
 func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
