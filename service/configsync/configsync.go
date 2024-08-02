@@ -57,6 +57,8 @@ const (
 	MessageTypeTratteriaConfigVerificationRuleUpsertResponse MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_RESPONSE"
 	MessageTypeRuleReconciliationRequest                     MessageType = "RULE_RECONCILIATION_REQUEST"
 	MessageTypeRuleReconciliationResponse                    MessageType = "RULE_RECONCILIATION_RESPONSE"
+	MessageTypeTraTDeletionRequest                           MessageType = "TRAT_DELETION_REQUEST"
+	MessageTypeTraTDeletionResponse                          MessageType = "TRAT_DELETION_RESPONSE"
 	MessageTypeUnknown                                       MessageType = "UNKNOWN"
 )
 
@@ -79,6 +81,10 @@ type Response struct {
 
 type AllActiveVerificationRulesPayload struct {
 	VerificationRules *v1alpha1.VerificationRules `json:"verificationRules"`
+}
+
+type TraTDeletionPayload struct {
+	TraTName string
 }
 
 func NewClient(tconfigdHost string, tconfigdSpiffeId spiffeid.ID, namespace string, verificationRulesManager v1alpha1.VerificationRulesManager, x509Source *workloadapi.X509Source, logger *zap.Logger) *Client {
@@ -342,7 +348,8 @@ func (c *Client) handleMessage(message []byte) {
 	switch temp.Type {
 	case MessageTypeTraTVerificationRuleUpsertRequest,
 		MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
-		MessageTypeRuleReconciliationRequest:
+		MessageTypeRuleReconciliationRequest,
+		MessageTypeTraTDeletionRequest:
 		c.handleRequest(message)
 	case MessageTypeGetJWKSResponse:
 		c.handleResponse(message)
@@ -367,6 +374,8 @@ func (c *Client) handleRequest(message []byte) {
 		c.handleRuleUpsertRequest(request)
 	case MessageTypeRuleReconciliationRequest:
 		c.handleRuleReconciliationRequest(request)
+	case MessageTypeTraTDeletionRequest:
+		c.handleTraTDeletionRequest(request)
 	default:
 		c.logger.Error("Received unknown or unexpected request type", zap.String("type", string(request.Type)))
 	}
@@ -470,6 +479,31 @@ func (c *Client) handleRuleReconciliationRequest(request Request) {
 	err := c.sendResponse(request.ID, MessageTypeRuleReconciliationResponse, http.StatusOK, nil)
 	if err != nil {
 		c.logger.Error("Error sending verification rule reconciliation request response", zap.Error(err))
+	}
+}
+
+func (c *Client) handleTraTDeletionRequest(request Request) {
+	c.logger.Info("Received trat deletion request")
+
+	var traTDeletionPayload TraTDeletionPayload
+
+	if err := json.Unmarshal(request.Payload, &traTDeletionPayload); err != nil {
+		c.logger.Error("Failed to unmarshal trat deletion request payload", zap.Error(err))
+		c.sendErrorResponse(
+			request.ID,
+			MessageTypeTraTDeletionResponse,
+			http.StatusBadRequest,
+			"error parsing trat deletion request payload",
+		)
+
+		return
+	}
+
+	c.verificationRulesManager.DeleteTrat(traTDeletionPayload.TraTName)
+
+	err := c.sendResponse(request.ID, MessageTypeTraTDeletionResponse, http.StatusOK, nil)
+	if err != nil {
+		c.logger.Error("Error sending trat deletion request response", zap.Error(err))
 	}
 }
 
