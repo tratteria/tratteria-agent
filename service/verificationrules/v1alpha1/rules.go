@@ -23,6 +23,7 @@ type VerificationRulesManager interface {
 	UpdateCompleteRules(*VerificationRules)
 	GetRulesJSON() (json.RawMessage, error)
 	GetVerificationRulesHash() (string, error)
+	DeleteTrat(string)
 }
 
 type VerificationRulesApplier interface {
@@ -94,6 +95,15 @@ func (vri *VerificationRulesImp) UpsertTraTRule(verificationtraTRule TraTVerific
 	vri.indexTraTsVerificationRules()
 
 	return nil
+}
+
+func (vri *VerificationRulesImp) DeleteTrat(tratName string) {
+	vri.mu.Lock()
+	defer vri.mu.Unlock()
+
+	delete(vri.verificationRules.TraTsVerificationRules, tratName)
+
+	vri.indexTraTsVerificationRules()
 }
 
 // write lock should be taken my method calling indexTraTsGenerationRules.
