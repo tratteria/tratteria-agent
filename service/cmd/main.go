@@ -61,7 +61,7 @@ func main() {
 
 	go func() {
 		apiServer := &api.API{
-			ApiPort:                  appConfig.AgentHttpApiPort,
+			ApiPort:                  appConfig.AgentApiPort,
 			VerificationRulesManager: verificationRules,
 			TraTVerifier:             tratVerifier,
 			Logger:                   logging.GetLogger("api-server")}

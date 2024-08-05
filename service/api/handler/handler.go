@@ -31,7 +31,8 @@ type VerifyTraTRequest struct {
 }
 
 type VerifyTraTResponse struct {
-	Valid bool `json:"valid"`
+	Valid  bool   `json:"valid"`
+	Reason string `json:"reason"`
 }
 
 func (h *Handlers) GetVerificationRulesHandler(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +99,7 @@ func (h *Handlers) VerifyTraTHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !valid {
 		verifyTraTResponse.Valid = false
+		verifyTraTResponse.Reason = reason
 
 		h.logger.Error("Invalid trat", zap.String("endpoint", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)), zap.String("reason", reason))
 	} else {
