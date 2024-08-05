@@ -13,7 +13,7 @@ type Config struct {
 	TconfigdSpiffeID     spiffeid.ID
 	ServicePort          *int
 	InterceptionMode     bool
-	AgentHttpApiPort     int
+	AgentApiPort         int
 	AgentInterceptorPort int
 	MyNamespace          string
 }
@@ -24,7 +24,7 @@ func GetAppConfig() *Config {
 		TconfigdSpiffeID:     spiffeid.RequireFromString(getEnv("TCONFIGD_SPIFFE_ID")),
 		ServicePort:          getOptionalEnvAsInt("SERVICE_PORT"),
 		InterceptionMode:     getEnvAsBool("INTERCEPTION_MODE"),
-		AgentHttpApiPort:     getEnvAsInt("AGENT_HTTP_API_PORT"),
+		AgentApiPort:         getEnvAsInt("AGENT_API_PORT"),
 		AgentInterceptorPort: getEnvAsInt("AGENT_INTERCEPTOR_PORT"),
 		MyNamespace:          getEnv("MY_NAMESPACE"),
 	}
