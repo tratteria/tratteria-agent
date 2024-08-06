@@ -171,6 +171,7 @@ func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
 				if indexedRules[rule.Method][rule.Endpoint] == nil {
 					indexedRules[rule.Method][rule.Endpoint] = &EndpointRule{Skip: false}
 				}
+
 				indexedRules[rule.Method][rule.Endpoint].Rules = append(
 					indexedRules[rule.Method][rule.Endpoint].Rules, rule)
 			}
@@ -183,6 +184,7 @@ func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
 			if indexedRules[endpoint.Method][endpoint.Path] == nil {
 				indexedRules[endpoint.Method][endpoint.Path] = &EndpointRule{}
 			}
+
 			indexedRules[endpoint.Method][endpoint.Path].Skip = true
 			indexedRules[endpoint.Method][endpoint.Path].Rules = nil // Clear any existing rules
 		}
