@@ -9,6 +9,7 @@ import (
 	"github.com/tratteria/tratteria-agent/common"
 	"github.com/tratteria/tratteria-agent/tratteriaagenterrors"
 	"github.com/tratteria/tratteria-agent/tratteriatrustbundlemanager"
+	"github.com/tratteria/tratteria-agent/tratverificationreasons"
 	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
 
 	"github.com/golang-jwt/jwt"
@@ -29,18 +30,31 @@ func NewTraTVerifier(verificationRulesApplier v1alpha1.VerificationRulesApplier,
 }
 
 func (tv *TraTVerifier) VerifyTraT(ctx context.Context, rawTrat string, path string, method common.HttpMethod, queryParameters json.RawMessage, headers json.RawMessage, body json.RawMessage) (bool, string, error) {
+	excluded, err := tv.verificationRulesApplier.IsTraTExcluded(path, method)
+	if err != nil {
+		return false, "", err
+	}
+
+	if excluded {
+		return true, tratverificationreasons.VerificationSkipped, nil
+	}
+
+	if rawTrat == "" {
+		return false, tratverificationreasons.EmptyTraT, nil
+	}
+
 	valid, trat, err := tv.verifyTraTSignature(ctx, rawTrat)
 
 	if err != nil {
 		if errors.Is(err, tratteriaagenterrors.ErrInvalidKeyID) {
-			return false, "invalid trat signature", nil
+			return false, tratverificationreasons.InvalidTraTSignature, nil
 		}
 
 		return false, "", fmt.Errorf("couldn't verify trat signature: %w", err)
 	}
 
 	if !valid {
-		return false, "invalid trat signature", nil
+		return false, tratverificationreasons.InvalidTraTSignature, nil
 	}
 
 	input := make(map[string]interface{})

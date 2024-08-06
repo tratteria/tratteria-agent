@@ -76,15 +76,9 @@ func (h *Handlers) VerifyTraTHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	trat := headers["Txn-Token"]
-	if trat == "" {
-		h.logger.Error("Trat missing in request", zap.String("endpoint", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)))
-		http.Error(w, "Missing trat", http.StatusUnauthorized)
-
-		return
-	}
-
 	h.logger.Info("Received verify trat request", zap.String("endpoint", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)))
+
+	trat := headers["Txn-Token"]
 
 	valid, reason, err := h.service.VerifyTraT(r.Context(), trat, verifyTraTRequest.Path, verifyTraTRequest.Method, verifyTraTRequest.QueryParameters, verifyTraTRequest.Headers, verifyTraTRequest.Body)
 

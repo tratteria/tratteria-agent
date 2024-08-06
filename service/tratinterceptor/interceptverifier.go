@@ -84,12 +84,6 @@ func (iv *TraTInterceptor) Start() error {
 func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		trat := r.Header.Get("Txn-Token")
-		if trat == "" {
-			iv.logger.Error("Trat missing in request", zap.String("endpoint", r.URL.Path), zap.String("method", r.Method))
-			http.Error(w, "Missing trat", http.StatusUnauthorized)
-
-			return
-		}
 
 		//TODO: handle keys with multiple values
 		queryParams := make(map[string]string)
