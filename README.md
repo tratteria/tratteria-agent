@@ -28,9 +28,9 @@ Tratteria agents are injected into microservices pods to verify TraTs. To integr
 
     Agents are configurable using annotations. Currently, the following annotations are supported:
 
-    `tratteria/agent-mode`: Specifies the mode for this particular microservice. This overrides the general agent-mode set in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#3-configure-tconfigd) for this microservice. Set to `delegation` for delegation mode or `interception` for interception mode.
+    1. `tratteria/agent-mode`: Specifies the mode for this particular microservice. This overrides the general agent-mode set in the [tconfig configuration](https://github.com/tratteria/tconfigd/tree/main/installation#3-configure-tconfigd) for this microservice. Set to `delegation` for delegation mode or `interception` for interception mode.
 
-    `tratteria/service-port`: The port the microservice uses for incoming requests. This is required if the agent is running in interception mode and is not required for delegation mode.
+    2. `tratteria/service-port`: The port the microservice uses for incoming requests. This is required if the agent is running in interception mode and is not required for delegation mode.
 
 ### Operating Modes
 

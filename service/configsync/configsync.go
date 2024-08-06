@@ -59,6 +59,10 @@ const (
 	MessageTypeRuleReconciliationResponse                    MessageType = "RULE_RECONCILIATION_RESPONSE"
 	MessageTypeTraTDeletionRequest                           MessageType = "TRAT_DELETION_REQUEST"
 	MessageTypeTraTDeletionResponse                          MessageType = "TRAT_DELETION_RESPONSE"
+	MessageTypeTraTExclRuleUpsertRequest                     MessageType = "TRAT_EXCL_RULE_UPSERT_REQUEST"
+	MessageTypeTraTExclRuleUpsertResponse                    MessageType = "TRAT_EXCL_RULE_UPSERT_RESPONSE"
+	MessageTypeTraTExclRuleDeleteRequest                     MessageType = "TRAT_EXCL_RULE_DELETE_REQUEST"
+	MessageTypeTraTExclRuleDeleteResponse                    MessageType = "TRAT_EXCL_RULE_DELETE_RESPONSE"
 	MessageTypeUnknown                                       MessageType = "UNKNOWN"
 )
 
@@ -349,7 +353,9 @@ func (c *Client) handleMessage(message []byte) {
 	case MessageTypeTraTVerificationRuleUpsertRequest,
 		MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
 		MessageTypeRuleReconciliationRequest,
-		MessageTypeTraTDeletionRequest:
+		MessageTypeTraTDeletionRequest,
+		MessageTypeTraTExclRuleUpsertRequest,
+		MessageTypeTraTExclRuleDeleteRequest:
 		c.handleRequest(message)
 	case MessageTypeGetJWKSResponse:
 		c.handleResponse(message)
@@ -369,90 +375,118 @@ func (c *Client) handleRequest(message []byte) {
 	c.logger.Debug("Received request", zap.String("id", request.ID), zap.String("type", string(request.Type)))
 
 	switch request.Type {
-	case MessageTypeTraTVerificationRuleUpsertRequest,
-		MessageTypeTratteriaConfigVerificationRuleUpsertRequest:
-		c.handleRuleUpsertRequest(request)
+	case MessageTypeTraTVerificationRuleUpsertRequest:
+		c.handleTraTRuleUpsertRequest(request)
+	case MessageTypeTratteriaConfigVerificationRuleUpsertRequest:
+		c.handleTratteriaConfigRuleUpsertRequest(request)
 	case MessageTypeRuleReconciliationRequest:
 		c.handleRuleReconciliationRequest(request)
 	case MessageTypeTraTDeletionRequest:
 		c.handleTraTDeletionRequest(request)
+	case MessageTypeTraTExclRuleUpsertRequest:
+		c.handleTraTExclRuleUpsertRequest(request)
+	case MessageTypeTraTExclRuleDeleteRequest:
+		c.handleTraTExclRuleDeleteRequest(request)
 	default:
 		c.logger.Error("Received unknown or unexpected request type", zap.String("type", string(request.Type)))
 	}
 }
 
-func (c *Client) handleRuleUpsertRequest(request Request) {
-	switch request.Type {
-	case MessageTypeTraTVerificationRuleUpsertRequest:
-		var serviceTraTVerificationRule v1alpha1.ServiceTraTVerificationRules
+func (c *Client) handleTraTRuleUpsertRequest(request Request) {
+	var serviceTraTVerificationRule v1alpha1.ServiceTraTVerificationRules
 
-		if err := json.Unmarshal(request.Payload, &serviceTraTVerificationRule); err != nil {
-			c.logger.Error("Failed to unmarshal trat verification rule", zap.Error(err))
-			c.sendErrorResponse(
-				request.ID,
-				MessageTypeTraTVerificationRuleUpsertResponse,
-				http.StatusBadRequest,
-				"error parsing trat verification rule",
-			)
-
-			return
-		}
-
-		c.logger.Info("Received trat verification rule upsert request",
-			zap.String("trat-name", serviceTraTVerificationRule.TraTName))
-
-		err := c.verificationRulesManager.UpsertTraTRule(&serviceTraTVerificationRule)
-		if err != nil {
-			c.logger.Error("Failed to upsert trat verification rule", zap.Error(err))
-			c.sendErrorResponse(
-				request.ID,
-				MessageTypeTraTVerificationRuleUpsertResponse,
-				http.StatusInternalServerError,
-				"error upserting trat verification rule",
-			)
-
-			return
-		}
-
-		err = c.sendResponse(request.ID, MessageTypeTraTVerificationRuleUpsertResponse, http.StatusOK, nil)
-		if err != nil {
-			c.logger.Error("Error sending trat verification upsert request response", zap.Error(err))
-		}
-
-	case MessageTypeTratteriaConfigVerificationRuleUpsertRequest:
-		var verificationTratteriaConfigRule v1alpha1.TratteriaConfigVerificationRule
-
-		if err := json.Unmarshal(request.Payload, &verificationTratteriaConfigRule); err != nil {
-			c.logger.Error("Failed to unmarshal tratteria config verification rule", zap.Error(err))
-			c.sendErrorResponse(
-				request.ID,
-				MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
-				http.StatusBadRequest,
-				"error parsing tratteria config verification rule",
-			)
-
-			return
-		}
-
-		c.logger.Info("Received tratteria config verification rule upsert request")
-
-		c.verificationRulesManager.UpdateTratteriaConfigRule(&verificationTratteriaConfigRule)
-
-		err := c.sendResponse(request.ID, MessageTypeTraTVerificationRuleUpsertResponse, http.StatusOK, nil)
-		if err != nil {
-			c.logger.Error("Error sending trat verification upsert request response", zap.Error(err))
-		}
-	default:
-		c.logger.Error("Received unknown or unexpected rule upsert request", zap.String("type", string(request.Type)))
-
+	if err := json.Unmarshal(request.Payload, &serviceTraTVerificationRule); err != nil {
+		c.logger.Error("Failed to unmarshal trat verification rule", zap.Error(err))
 		c.sendErrorResponse(
 			request.ID,
-			MessageTypeUnknown,
+			MessageTypeTraTVerificationRuleUpsertResponse,
 			http.StatusBadRequest,
-			"received unknown or unexpected rule upsert request",
+			"error parsing trat verification rule",
 		)
 
 		return
+	}
+
+	c.logger.Info("Received trat verification rule upsert request",
+		zap.String("trat-name", serviceTraTVerificationRule.TraTName))
+
+	err := c.verificationRulesManager.UpsertTraTRule(&serviceTraTVerificationRule)
+	if err != nil {
+		c.logger.Error("Failed to upsert trat verification rule", zap.Error(err))
+		c.sendErrorResponse(
+			request.ID,
+			MessageTypeTraTVerificationRuleUpsertResponse,
+			http.StatusInternalServerError,
+			"error upserting trat verification rule",
+		)
+
+		return
+	}
+
+	err = c.sendResponse(request.ID, MessageTypeTraTVerificationRuleUpsertResponse, http.StatusOK, nil)
+	if err != nil {
+		c.logger.Error("Error sending trat verification upsert request response", zap.Error(err))
+	}
+}
+
+func (c *Client) handleTratteriaConfigRuleUpsertRequest(request Request) {
+	var verificationTratteriaConfigRule v1alpha1.TratteriaConfigVerificationRule
+
+	if err := json.Unmarshal(request.Payload, &verificationTratteriaConfigRule); err != nil {
+		c.logger.Error("Failed to unmarshal tratteria config verification rule", zap.Error(err))
+		c.sendErrorResponse(
+			request.ID,
+			MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
+			http.StatusBadRequest,
+			"error parsing tratteria config verification rule",
+		)
+
+		return
+	}
+
+	c.logger.Info("Received tratteria config verification rule upsert request")
+
+	c.verificationRulesManager.UpdateTratteriaConfigRule(&verificationTratteriaConfigRule)
+
+	err := c.sendResponse(request.ID, MessageTypeTraTVerificationRuleUpsertResponse, http.StatusOK, nil)
+	if err != nil {
+		c.logger.Error("Error sending trat verification upsert request response", zap.Error(err))
+	}
+}
+
+func (c *Client) handleTraTExclRuleUpsertRequest(request Request) {
+	var traTExclRule v1alpha1.TraTExclRule
+
+	if err := json.Unmarshal(request.Payload, &traTExclRule); err != nil {
+		c.logger.Error("Failed to unmarshal tratexcl rule", zap.Error(err))
+		c.sendErrorResponse(
+			request.ID,
+			MessageTypeTraTExclRuleUpsertResponse,
+			http.StatusBadRequest,
+			"error parsing tratexcl rule",
+		)
+
+		return
+	}
+
+	c.logger.Info("Received trat excl rule upsert request")
+
+	err := c.verificationRulesManager.UpsertTraTExclRule(&traTExclRule)
+	if err != nil {
+		c.logger.Error("Failed to upsert tratexcl rule", zap.Error(err))
+		c.sendErrorResponse(
+			request.ID,
+			MessageTypeTraTExclRuleUpsertResponse,
+			http.StatusInternalServerError,
+			"error upserting tratexcl rule",
+		)
+
+		return
+	}
+
+	err = c.sendResponse(request.ID, MessageTypeTraTExclRuleUpsertResponse, http.StatusOK, nil)
+	if err != nil {
+		c.logger.Error("Error sending tratexcl upsert request response", zap.Error(err))
 	}
 }
 
@@ -503,6 +537,17 @@ func (c *Client) handleTraTDeletionRequest(request Request) {
 	err := c.sendResponse(request.ID, MessageTypeTraTDeletionResponse, http.StatusOK, nil)
 	if err != nil {
 		c.logger.Error("Error sending trat deletion request response", zap.Error(err))
+	}
+}
+
+func (c *Client) handleTraTExclRuleDeleteRequest(request Request) {
+	c.logger.Info("Received tratexcl deletion request")
+
+	c.verificationRulesManager.DeleteTratExcl()
+
+	err := c.sendResponse(request.ID, MessageTypeTraTExclRuleDeleteResponse, http.StatusOK, nil)
+	if err != nil {
+		c.logger.Error("Error sending tratexcl deletion request response", zap.Error(err))
 	}
 }
 

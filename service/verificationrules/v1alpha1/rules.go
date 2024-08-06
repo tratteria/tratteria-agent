@@ -14,6 +14,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tratteria/tratteria-agent/common"
 	"github.com/tratteria/tratteria-agent/trat"
+	"github.com/tratteria/tratteria-agent/tratverificationreasons"
 	"github.com/tratteria/tratteria-agent/utils"
 )
 
@@ -24,10 +25,13 @@ type VerificationRulesManager interface {
 	GetRulesJSON() (json.RawMessage, error)
 	GetVerificationRulesHash() (string, error)
 	DeleteTrat(string)
+	UpsertTraTExclRule(traTExclRule *TraTExclRule) error
+	DeleteTratExcl()
 }
 
 type VerificationRulesApplier interface {
 	ApplyRule(trat *trat.TraT, path string, method common.HttpMethod, input map[string]interface{}) (bool, string, error)
+	IsTraTExcluded(path string, method common.HttpMethod) (bool, error)
 }
 
 type TratteriaConfigVerificationRule struct {
@@ -54,18 +58,32 @@ type AzdField struct {
 	Value    string `json:"value"`
 }
 
-type IndexedTraTsVerificationRules map[common.HttpMethod]map[string][]*TraTVerificationRule
+type TraTExclRule struct {
+	Endpoints []Endpoint `json:"endpoints"`
+}
+
+type Endpoint struct {
+	Path   string            `json:"path"`
+	Method common.HttpMethod `json:"method"`
+}
 
 type VerificationRules struct {
 	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule         `json:"tratteriaConfigVerificationRule"`
 	TraTsVerificationRules          map[string]*ServiceTraTVerificationRules `json:"traTsVerificationRules"`
+	TraTExclRule                    *TraTExclRule                            `json:"traTExclRule"`
 }
 
 func NewVerificationRules() *VerificationRules {
 	return &VerificationRules{
-		TratteriaConfigVerificationRule: &TratteriaConfigVerificationRule{},
-		TraTsVerificationRules:          make(map[string]*ServiceTraTVerificationRules),
+		TraTsVerificationRules: make(map[string]*ServiceTraTVerificationRules),
 	}
+}
+
+type IndexedTraTsVerificationRules map[common.HttpMethod]map[string]*EndpointRule
+
+type EndpointRule struct {
+	Skip  bool
+	Rules []*TraTVerificationRule
 }
 
 type VerificationRulesImp struct {
@@ -78,7 +96,7 @@ func NewVerificationRulesImp() *VerificationRulesImp {
 	indexedTraTsVerificationRules := make(IndexedTraTsVerificationRules)
 
 	for _, method := range common.HttpMethodList {
-		indexedTraTsVerificationRules[method] = make(map[string][]*TraTVerificationRule)
+		indexedTraTsVerificationRules[method] = make(map[string]*EndpointRule)
 	}
 
 	return &VerificationRulesImp{
@@ -104,6 +122,23 @@ func (vri *VerificationRulesImp) UpsertTraTRule(serviceTraTVerificationRules *Se
 	return nil
 }
 
+func (vri *VerificationRulesImp) UpsertTraTExclRule(traTExclRule *TraTExclRule) error {
+	vri.mu.Lock()
+	defer vri.mu.Unlock()
+
+	for _, traTExclEndpoint := range traTExclRule.Endpoints {
+		if _, exist := vri.indexedTraTsVerificationRules[traTExclEndpoint.Method]; !exist {
+			return fmt.Errorf("invalid HTTP method %s for %s path in tratexcl rule", string(traTExclEndpoint.Method), traTExclEndpoint.Path)
+		}
+	}
+
+	vri.verificationRules.TraTExclRule = traTExclRule
+
+	vri.indexTraTsVerificationRules()
+
+	return nil
+}
+
 func (vri *VerificationRulesImp) DeleteTrat(tratName string) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
@@ -113,29 +148,47 @@ func (vri *VerificationRulesImp) DeleteTrat(tratName string) {
 	vri.indexTraTsVerificationRules()
 }
 
+func (vri *VerificationRulesImp) DeleteTratExcl() {
+	vri.mu.Lock()
+	defer vri.mu.Unlock()
+
+	vri.verificationRules.TraTExclRule = nil
+
+	vri.indexTraTsVerificationRules()
+}
+
 // write lock should be taken my method calling indexTraTsGenerationRules.
 func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
-	indexedTraTsVerificationRules := make(IndexedTraTsVerificationRules)
+	indexedRules := make(IndexedTraTsVerificationRules)
 
 	for _, method := range common.HttpMethodList {
-		indexedTraTsVerificationRules[method] = make(map[string][]*TraTVerificationRule)
+		indexedRules[method] = make(map[string]*EndpointRule)
 	}
 
-	if vri.verificationRules == nil || vri.verificationRules.TraTsVerificationRules == nil {
-		vri.indexedTraTsVerificationRules = indexedTraTsVerificationRules
-
-		return
-	}
-
-	for _, serviceTraTVerificationRules := range vri.verificationRules.TraTsVerificationRules {
-		for _, traTVerificationRule := range serviceTraTVerificationRules.TraTVerificationRules {
-			indexedTraTsVerificationRules[traTVerificationRule.Method][traTVerificationRule.Endpoint] = append(
-				indexedTraTsVerificationRules[traTVerificationRule.Method][traTVerificationRule.Endpoint],
-				traTVerificationRule)
+	if vri.verificationRules != nil && vri.verificationRules.TraTsVerificationRules != nil {
+		for _, serviceRules := range vri.verificationRules.TraTsVerificationRules {
+			for _, rule := range serviceRules.TraTVerificationRules {
+				if indexedRules[rule.Method][rule.Endpoint] == nil {
+					indexedRules[rule.Method][rule.Endpoint] = &EndpointRule{Skip: false}
+				}
+				indexedRules[rule.Method][rule.Endpoint].Rules = append(
+					indexedRules[rule.Method][rule.Endpoint].Rules, rule)
+			}
 		}
 	}
 
-	vri.indexedTraTsVerificationRules = indexedTraTsVerificationRules
+	// Index exclusion rules
+	if vri.verificationRules.TraTExclRule != nil {
+		for _, endpoint := range vri.verificationRules.TraTExclRule.Endpoints {
+			if indexedRules[endpoint.Method][endpoint.Path] == nil {
+				indexedRules[endpoint.Method][endpoint.Path] = &EndpointRule{}
+			}
+			indexedRules[endpoint.Method][endpoint.Path].Skip = true
+			indexedRules[endpoint.Method][endpoint.Path].Rules = nil // Clear any existing rules
+		}
+	}
+
+	vri.indexedTraTsVerificationRules = indexedRules
 }
 
 func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule *TratteriaConfigVerificationRule) {
@@ -157,8 +210,8 @@ func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
 	return jsonData, nil
 }
 
-// Read lock should be take by the function calling matchTraTsRules.
-func (vri *VerificationRulesImp) matchTraTsRules(path string, method common.HttpMethod) ([]*TraTVerificationRule, map[string]string, error) {
+// Read lock should be take by the function calling matchRule.
+func (vri *VerificationRulesImp) matchRule(path string, method common.HttpMethod) (*EndpointRule, map[string]string, error) {
 	methodRuleMap, ok := vri.indexedTraTsVerificationRules[method]
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid HTTP method: %s", string(method))
@@ -197,20 +250,28 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 	vri.mu.RLock()
 	defer vri.mu.RUnlock()
 
+	if vri.verificationRules.TratteriaConfigVerificationRule == nil {
+		return false, "", fmt.Errorf("tratteria config verification rule not set")
+	}
+
 	if vri.verificationRules.TratteriaConfigVerificationRule.Issuer != trat.Issuer {
-		return false, "invalid issuer", nil
+		return false, tratverificationreasons.InvalidIssuer, nil
 	}
 
 	if vri.verificationRules.TratteriaConfigVerificationRule.Audience != trat.Audience {
-		return false, "invalid audience", nil
+		return false, tratverificationreasons.InvalidAudience, nil
 	}
 
-	traTsRules, pathParameter, err := vri.matchTraTsRules(path, method)
+	endpointRule, pathParameter, err := vri.matchRule(path, method)
 	if err != nil {
-		return false, fmt.Sprintf("trat verification rules not found for %s path and %s method", path, method), err
+		return false, fmt.Sprintf(tratverificationreasons.VerificationRuleNotFound, path, method), err
 	}
 
-	for _, traTRule := range traTsRules {
+	if endpointRule.Skip {
+		return true, tratverificationreasons.VerificationSkipped, nil
+	}
+
+	for _, traTRule := range endpointRule.Rules {
 		if traTRule.Purp != trat.Purp {
 			continue
 		}
@@ -235,7 +296,28 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 		}
 	}
 
-	return false, "invalid authorization details", err
+	return false, tratverificationreasons.InvalidAuthDetails, err
+}
+
+func (vri *VerificationRulesImp) IsTraTExcluded(path string, method common.HttpMethod) (bool, error) {
+	vri.mu.RLock()
+	defer vri.mu.RUnlock()
+
+	methodRuleMap, ok := vri.indexedTraTsVerificationRules[method]
+	if !ok {
+		return false, fmt.Errorf("invalid HTTP method: %s", string(method))
+	}
+
+	for pattern, rule := range methodRuleMap {
+		regexPattern := convertToRegex(pattern)
+		re := regexp.MustCompile(regexPattern)
+
+		if re.MatchString(path) {
+			return rule.Skip, nil
+		}
+	}
+
+	return false, nil // If no rule is found, it is not excluded
 }
 
 func (vri *VerificationRulesImp) validateAzd(azdMapping AzdMapping, input map[string]interface{}, trat *trat.TraT) (bool, error) {
