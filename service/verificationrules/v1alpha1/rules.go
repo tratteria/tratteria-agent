@@ -41,7 +41,7 @@ type TratteriaConfigVerificationRule struct {
 
 type TraTVerificationRule struct {
 	TraTName   string            `json:"traTName"`
-	Endpoint   string            `json:"endpoint"`
+	Path       string            `json:"path"`
 	Method     common.HttpMethod `json:"method"`
 	Purp       string            `json:"purp"`
 	AzdMapping AzdMapping        `json:"azdmapping,omitempty"`
@@ -168,12 +168,12 @@ func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
 	if vri.verificationRules != nil && vri.verificationRules.TraTsVerificationRules != nil {
 		for _, serviceRules := range vri.verificationRules.TraTsVerificationRules {
 			for _, rule := range serviceRules.TraTVerificationRules {
-				if indexedRules[rule.Method][rule.Endpoint] == nil {
-					indexedRules[rule.Method][rule.Endpoint] = &EndpointRule{Skip: false}
+				if indexedRules[rule.Method][rule.Path] == nil {
+					indexedRules[rule.Method][rule.Path] = &EndpointRule{Skip: false}
 				}
 
-				indexedRules[rule.Method][rule.Endpoint].Rules = append(
-					indexedRules[rule.Method][rule.Endpoint].Rules, rule)
+				indexedRules[rule.Method][rule.Path].Rules = append(
+					indexedRules[rule.Method][rule.Path].Rules, rule)
 			}
 		}
 	}

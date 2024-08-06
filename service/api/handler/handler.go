@@ -23,7 +23,7 @@ func NewHandlers(service *service.Service, logger *zap.Logger) *Handlers {
 }
 
 type VerifyTraTRequest struct {
-	Path            string            `json:"endpoint"`
+	Path            string            `json:"path"`
 	Method          common.HttpMethod `json:"method"`
 	QueryParameters json.RawMessage   `json:"queryParameters"`
 	Headers         json.RawMessage   `json:"headers"`
@@ -76,7 +76,7 @@ func (h *Handlers) VerifyTraTHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("Received verify trat request", zap.String("endpoint", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)))
+	h.logger.Info("Received verify trat request", zap.String("path", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)))
 
 	trat := headers["Txn-Token"]
 
@@ -95,7 +95,7 @@ func (h *Handlers) VerifyTraTHandler(w http.ResponseWriter, r *http.Request) {
 		verifyTraTResponse.Valid = false
 		verifyTraTResponse.Reason = reason
 
-		h.logger.Error("Invalid trat", zap.String("endpoint", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)), zap.String("reason", reason))
+		h.logger.Error("Invalid trat", zap.String("path", verifyTraTRequest.Path), zap.String("method", string(verifyTraTRequest.Method)), zap.String("reason", reason))
 	} else {
 		verifyTraTResponse.Valid = true
 	}
