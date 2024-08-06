@@ -56,7 +56,7 @@ In this mode, incoming requests are not intercepted; instead, requests must be m
 
 **Sample API Endpoint:** http://localhost:<agentApiPort>/verify-trat
 
-For example, if `agentApiPort` is configured as `9030`, the full API endpoint would be: `http://localhost:9030/verify-trat`
+For example, if `agentApiPort` is configured as `9030`, the full API endpoint would be: `POST http://localhost:9030/verify-trat`
 
 This endpoint takes request data as input and responds with the result of the TraT verification.
 
@@ -66,7 +66,7 @@ Structure:
 
 ```json
 {
-    "endpoint": "request URL path",
+    "path": "request URL path",
     "method": "request HTTP method",
     "body": "request JSON payload",
     "headers": "JSON object of request HTTP headers",
@@ -78,7 +78,7 @@ Example:
 
 ```json
 {
-    "endpoint": "/order",
+    "path": "/order",
     "method": "POST",
     "body": {
         "stockID": 12345,

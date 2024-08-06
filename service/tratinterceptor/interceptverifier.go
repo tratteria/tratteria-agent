@@ -124,7 +124,7 @@ func (iv *TraTInterceptor) tratVerificationMiddleware(next http.Handler) http.Ha
 		}
 
 		if !valid {
-			iv.logger.Error("Invalid trat", zap.String("endpoint", r.URL.Path), zap.String("method", r.Method), zap.String("reason", reason))
+			iv.logger.Error("Invalid trat", zap.String("path", r.URL.Path), zap.String("method", r.Method), zap.String("reason", reason))
 			http.Error(w, "Invalid trat", http.StatusUnauthorized)
 
 			return
