@@ -50,6 +50,10 @@ func (tv *TraTVerifier) VerifyTraT(ctx context.Context, rawTrat string, path str
 			return false, tratverificationreasons.InvalidTraTSignature, nil
 		}
 
+		if errors.Is(err, tratteriaagenterrors.ErrTraTExpired) {
+			return false, tratverificationreasons.ExpiredTraT, nil
+		}
+
 		return false, "", fmt.Errorf("couldn't verify trat signature: %w", err)
 	}
 
@@ -91,8 +95,14 @@ func (tv *TraTVerifier) verifyTraTSignature(ctx context.Context, rawTrat string)
 	})
 
 	if err != nil {
-		if validationErr, ok := err.(*jwt.ValidationError); ok && validationErr.Inner != nil {
-			return false, nil, validationErr.Inner
+		if validationErr, ok := err.(*jwt.ValidationError); ok {
+			if validationErr.Errors&jwt.ValidationErrorExpired != 0 {
+				return false, nil, tratteriaagenterrors.ErrTraTExpired
+			}
+
+			if validationErr.Inner != nil {
+				return false, nil, validationErr.Inner
+			}
 		}
 
 		return false, nil, err

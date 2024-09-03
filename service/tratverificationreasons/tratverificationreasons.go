@@ -7,5 +7,6 @@ const (
 	InvalidIssuer            = "invalid issuer"
 	InvalidAudience          = "invalid audience"
 	InvalidAuthDetails       = "invalid authorization details"
+	ExpiredTraT              = "trat has expired"
 	VerificationRuleNotFound = "trat verification rules not found for %s path and %s method"
 )
