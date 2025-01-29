@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/tratteria/tratteria-agent/common"
-	"github.com/tratteria/tratteria-agent/tratverifier"
-	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
+	"github.com/tokenetes/tokenetes-agent/common"
+	"github.com/tokenetes/tokenetes-agent/tratverifier"
+	"github.com/tokenetes/tokenetes-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 

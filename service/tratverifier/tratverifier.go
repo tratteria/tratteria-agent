@@ -6,26 +6,26 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tratteria/tratteria-agent/common"
-	"github.com/tratteria/tratteria-agent/tratteriaagenterrors"
-	"github.com/tratteria/tratteria-agent/tratteriatrustbundlemanager"
-	"github.com/tratteria/tratteria-agent/tratverificationreasons"
-	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
+	"github.com/tokenetes/tokenetes-agent/common"
+	"github.com/tokenetes/tokenetes-agent/tokenetesagenterrors"
+	"github.com/tokenetes/tokenetes-agent/tokenetestrustbundlemanager"
+	"github.com/tokenetes/tokenetes-agent/tratverificationreasons"
+	"github.com/tokenetes/tokenetes-agent/verificationrules/v1alpha1"
 
 	"github.com/golang-jwt/jwt"
 
-	"github.com/tratteria/tratteria-agent/trat"
+	"github.com/tokenetes/tokenetes-agent/trat"
 )
 
 type TraTVerifier struct {
 	verificationRulesApplier    v1alpha1.VerificationRulesApplier
-	tratteriaTrustBundleManager *tratteriatrustbundlemanager.TratteriaTrustBundleManager
+	tokenetesTrustBundleManager *tokenetestrustbundlemanager.TokenetesTrustBundleManager
 }
 
-func NewTraTVerifier(verificationRulesApplier v1alpha1.VerificationRulesApplier, tratteriaTrustBundleManager *tratteriatrustbundlemanager.TratteriaTrustBundleManager) *TraTVerifier {
+func NewTraTVerifier(verificationRulesApplier v1alpha1.VerificationRulesApplier, tokenetesTrustBundleManager *tokenetestrustbundlemanager.TokenetesTrustBundleManager) *TraTVerifier {
 	return &TraTVerifier{
 		verificationRulesApplier:    verificationRulesApplier,
-		tratteriaTrustBundleManager: tratteriaTrustBundleManager,
+		tokenetesTrustBundleManager: tokenetesTrustBundleManager,
 	}
 }
 
@@ -46,11 +46,11 @@ func (tv *TraTVerifier) VerifyTraT(ctx context.Context, rawTrat string, path str
 	valid, trat, err := tv.verifyTraTSignature(ctx, rawTrat)
 
 	if err != nil {
-		if errors.Is(err, tratteriaagenterrors.ErrInvalidKeyID) {
+		if errors.Is(err, tokenetesagenterrors.ErrInvalidKeyID) {
 			return false, tratverificationreasons.InvalidTraTSignature, nil
 		}
 
-		if errors.Is(err, tratteriaagenterrors.ErrTraTExpired) {
+		if errors.Is(err, tokenetesagenterrors.ErrTraTExpired) {
 			return false, tratverificationreasons.ExpiredTraT, nil
 		}
 
@@ -81,7 +81,7 @@ func (tv *TraTVerifier) verifyTraTSignature(ctx context.Context, rawTrat string)
 			return nil, fmt.Errorf("kid not present in token header")
 		}
 
-		key, err := tv.tratteriaTrustBundleManager.GetJWK(ctx, kid)
+		key, err := tv.tokenetesTrustBundleManager.GetJWK(ctx, kid)
 		if err != nil {
 			return nil, fmt.Errorf("key %v not found: %w", kid, err)
 		}
@@ -97,7 +97,7 @@ func (tv *TraTVerifier) verifyTraTSignature(ctx context.Context, rawTrat string)
 	if err != nil {
 		if validationErr, ok := err.(*jwt.ValidationError); ok {
 			if validationErr.Errors&jwt.ValidationErrorExpired != 0 {
-				return false, nil, tratteriaagenterrors.ErrTraTExpired
+				return false, nil, tokenetesagenterrors.ErrTraTExpired
 			}
 
 			if validationErr.Inner != nil {

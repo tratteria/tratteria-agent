@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/tratteria/tratteria-agent/api/handler"
-	"github.com/tratteria/tratteria-agent/api/service"
-	"github.com/tratteria/tratteria-agent/tratverifier"
-	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
+	"github.com/tokenetes/tokenetes-agent/api/handler"
+	"github.com/tokenetes/tokenetes-agent/api/service"
+	"github.com/tokenetes/tokenetes-agent/tratverifier"
+	"github.com/tokenetes/tokenetes-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 

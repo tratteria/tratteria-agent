@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	"github.com/tratteria/tratteria-agent/api"
-	"github.com/tratteria/tratteria-agent/config"
-	"github.com/tratteria/tratteria-agent/configsync"
-	"github.com/tratteria/tratteria-agent/logging"
-	"github.com/tratteria/tratteria-agent/tratinterceptor"
-	"github.com/tratteria/tratteria-agent/tratteriatrustbundlemanager"
-	"github.com/tratteria/tratteria-agent/tratverifier"
-	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
+	"github.com/tokenetes/tokenetes-agent/api"
+	"github.com/tokenetes/tokenetes-agent/config"
+	"github.com/tokenetes/tokenetes-agent/configsync"
+	"github.com/tokenetes/tokenetes-agent/logging"
+	"github.com/tokenetes/tokenetes-agent/tokenetestrustbundlemanager"
+	"github.com/tokenetes/tokenetes-agent/tratinterceptor"
+	"github.com/tokenetes/tokenetes-agent/tratverifier"
+	"github.com/tokenetes/tokenetes-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 
@@ -55,9 +55,9 @@ func main() {
 		}
 	}()
 
-	tratteriaTrustBundleManager := tratteriatrustbundlemanager.NewTratteriaTrustBundleManager(configSyncClient, appConfig.MyNamespace)
+	tokenetesTrustBundleManager := tokenetestrustbundlemanager.NewTokenetesTrustBundleManager(configSyncClient, appConfig.MyNamespace)
 
-	tratVerifier := tratverifier.NewTraTVerifier(verificationRules, tratteriaTrustBundleManager)
+	tratVerifier := tratverifier.NewTraTVerifier(verificationRules, tokenetesTrustBundleManager)
 
 	go func() {
 		apiServer := &api.API{
@@ -91,7 +91,7 @@ func main() {
 
 	<-ctx.Done()
 
-	mainLogger.Info("Shutting down tratteria agent...")
+	mainLogger.Info("Shutting down tokenetes agent...")
 }
 
 func setupSignalHandler(cancel context.CancelFunc) {

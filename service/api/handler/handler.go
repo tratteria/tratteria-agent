@@ -5,8 +5,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/tratteria/tratteria-agent/api/service"
-	"github.com/tratteria/tratteria-agent/common"
+	"github.com/tokenetes/tokenetes-agent/api/service"
+	"github.com/tokenetes/tokenetes-agent/common"
 	"go.uber.org/zap"
 )
 

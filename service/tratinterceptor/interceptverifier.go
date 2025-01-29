@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/tratteria/tratteria-agent/common"
-	"github.com/tratteria/tratteria-agent/tratverifier"
+	"github.com/tokenetes/tokenetes-agent/common"
+	"github.com/tokenetes/tokenetes-agent/tratverifier"
 	"go.uber.org/zap"
 )
 
