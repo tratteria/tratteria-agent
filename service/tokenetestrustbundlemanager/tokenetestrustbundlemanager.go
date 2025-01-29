@@ -1,4 +1,4 @@
-package tratteriatrustbundlemanager
+package tokenetestrustbundlemanager
 
 import (
 	"context"
@@ -6,30 +6,30 @@ import (
 	"sync"
 
 	"github.com/lestrrat-go/jwx/jwk"
-	"github.com/tratteria/tratteria-agent/configsync"
-	"github.com/tratteria/tratteria-agent/tratteriaagenterrors"
+	"github.com/tokenetes/tokenetes-agent/configsync"
+	"github.com/tokenetes/tokenetes-agent/tokenetesagenterrors"
 )
 
 const (
 	JWKS_ENDPOINT = ".well-known/jwks.json"
 )
 
-type TratteriaTrustBundleManager struct {
+type TokenetesTrustBundleManager struct {
 	keySet           jwk.Set
 	configSyncClient *configsync.Client
 	namespace        string
 	mu               sync.RWMutex
 }
 
-func NewTratteriaTrustBundleManager(configSyncClient *configsync.Client, namespace string) *TratteriaTrustBundleManager {
-	return &TratteriaTrustBundleManager{
+func NewTokenetesTrustBundleManager(configSyncClient *configsync.Client, namespace string) *TokenetesTrustBundleManager {
+	return &TokenetesTrustBundleManager{
 		keySet:           jwk.NewSet(),
 		configSyncClient: configSyncClient,
 		namespace:        namespace,
 	}
 }
 
-func (tm *TratteriaTrustBundleManager) GetJWK(ctx context.Context, keyID string) (jwk.Key, error) {
+func (tm *TokenetesTrustBundleManager) GetJWK(ctx context.Context, keyID string) (jwk.Key, error) {
 	tm.mu.RLock()
 	key, found := tm.keySet.LookupKeyID(keyID)
 	tm.mu.RUnlock()
@@ -53,10 +53,10 @@ func (tm *TratteriaTrustBundleManager) GetJWK(ctx context.Context, keyID string)
 		return key, nil
 	}
 
-	return nil, tratteriaagenterrors.ErrInvalidKeyID
+	return nil, tokenetesagenterrors.ErrInvalidKeyID
 }
 
-func (tm *TratteriaTrustBundleManager) fetchAndUpdateKeys(ctx context.Context) error {
+func (tm *TokenetesTrustBundleManager) fetchAndUpdateKeys(ctx context.Context) error {
 	set, err := tm.configSyncClient.GetJWKs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get JWKS: %w", err)

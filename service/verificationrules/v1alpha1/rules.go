@@ -12,15 +12,15 @@ import (
 	"sync"
 
 	"github.com/tidwall/gjson"
-	"github.com/tratteria/tratteria-agent/common"
-	"github.com/tratteria/tratteria-agent/trat"
-	"github.com/tratteria/tratteria-agent/tratverificationreasons"
-	"github.com/tratteria/tratteria-agent/utils"
+	"github.com/tokenetes/tokenetes-agent/common"
+	"github.com/tokenetes/tokenetes-agent/trat"
+	"github.com/tokenetes/tokenetes-agent/tratverificationreasons"
+	"github.com/tokenetes/tokenetes-agent/utils"
 )
 
 type VerificationRulesManager interface {
 	UpsertTraTRule(*ServiceTraTVerificationRules) error
-	UpdateTratteriaConfigRule(*TratteriaConfigVerificationRule)
+	UpdateTokenetesConfigRule(*TokenetesConfigVerificationRule)
 	UpdateCompleteRules(*VerificationRules)
 	GetRulesJSON() (json.RawMessage, error)
 	GetVerificationRulesHash() (string, error)
@@ -34,7 +34,7 @@ type VerificationRulesApplier interface {
 	IsTraTExcluded(path string, method common.HttpMethod) (bool, error)
 }
 
-type TratteriaConfigVerificationRule struct {
+type TokenetesConfigVerificationRule struct {
 	Issuer   string `json:"issuer"`
 	Audience string `json:"audience"`
 }
@@ -68,7 +68,7 @@ type Endpoint struct {
 }
 
 type VerificationRules struct {
-	TratteriaConfigVerificationRule *TratteriaConfigVerificationRule         `json:"tratteriaConfigVerificationRule"`
+	TokenetesConfigVerificationRule *TokenetesConfigVerificationRule         `json:"tokenetesConfigVerificationRule"`
 	TraTsVerificationRules          map[string]*ServiceTraTVerificationRules `json:"traTsVerificationRules"`
 	TraTExclRule                    *TraTExclRule                            `json:"traTExclRule"`
 }
@@ -193,11 +193,11 @@ func (vri *VerificationRulesImp) indexTraTsVerificationRules() {
 	vri.indexedTraTsVerificationRules = indexedRules
 }
 
-func (vri *VerificationRulesImp) UpdateTratteriaConfigRule(tratteriaConfigRule *TratteriaConfigVerificationRule) {
+func (vri *VerificationRulesImp) UpdateTokenetesConfigRule(tokenetesConfigRule *TokenetesConfigVerificationRule) {
 	vri.mu.Lock()
 	defer vri.mu.Unlock()
 
-	vri.verificationRules.TratteriaConfigVerificationRule = tratteriaConfigRule
+	vri.verificationRules.TokenetesConfigVerificationRule = tokenetesConfigRule
 }
 
 func (vri *VerificationRulesImp) GetRulesJSON() (json.RawMessage, error) {
@@ -252,15 +252,15 @@ func (vri *VerificationRulesImp) ApplyRule(trat *trat.TraT, path string, method 
 	vri.mu.RLock()
 	defer vri.mu.RUnlock()
 
-	if vri.verificationRules.TratteriaConfigVerificationRule == nil {
-		return false, "", fmt.Errorf("tratteria config verification rule not set")
+	if vri.verificationRules.TokenetesConfigVerificationRule == nil {
+		return false, "", fmt.Errorf("tokenetes config verification rule not set")
 	}
 
-	if vri.verificationRules.TratteriaConfigVerificationRule.Issuer != trat.Issuer {
+	if vri.verificationRules.TokenetesConfigVerificationRule.Issuer != trat.Issuer {
 		return false, tratverificationreasons.InvalidIssuer, nil
 	}
 
-	if vri.verificationRules.TratteriaConfigVerificationRule.Audience != trat.Audience {
+	if vri.verificationRules.TokenetesConfigVerificationRule.Audience != trat.Audience {
 		return false, tratverificationreasons.InvalidAudience, nil
 	}
 

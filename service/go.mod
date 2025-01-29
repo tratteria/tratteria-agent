@@ -1,4 +1,4 @@
-module github.com/tratteria/tratteria-agent
+module github.com/tokenetes/tokenetes-agent
 
 go 1.22.0
 

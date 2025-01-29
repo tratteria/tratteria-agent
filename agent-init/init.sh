@@ -7,8 +7,8 @@ set -o pipefail
 usage() {
   echo "${0} -i INBOUND_PORT -p AGENT_PORT"
   echo ''
-  echo '  -i: Specify the inbound TCP port to intercept and redirect to the Tratteria Agent'
-  echo '  -p: Specify the Tratteria Agent port to which redirect all inbound TCP traffic'
+  echo '  -i: Specify the inbound TCP port to intercept and redirect to the Tokenetes Agent'
+  echo '  -p: Specify the Tokenetes Agent port to which redirect all inbound TCP traffic'
   echo ''
 }
 
@@ -42,13 +42,13 @@ if [[ -z "${INBOUND_PORT}" || -z "${AGENT_PORT}" ]]; then
 fi
 
 if ! iptables -t nat -L TRATTERIA_IN_REDIRECT &> /dev/null; then
-  iptables -t nat -N TRATTERIA_IN_REDIRECT -m comment --comment "tratteria/redirect-inbound-chain"
+  iptables -t nat -N TRATTERIA_IN_REDIRECT -m comment --comment "tokenetes/redirect-inbound-chain"
 fi
 
 iptables -t nat -F TRATTERIA_IN_REDIRECT
 
-iptables -t nat -A TRATTERIA_IN_REDIRECT -p tcp --dport ${INBOUND_PORT} -j REDIRECT --to-port ${AGENT_PORT} -m comment --comment "tratteria/redirect-to-tratteria-inbound-port"
+iptables -t nat -A TRATTERIA_IN_REDIRECT -p tcp --dport ${INBOUND_PORT} -j REDIRECT --to-port ${AGENT_PORT} -m comment --comment "tokenetes/redirect-to-tokenetes-inbound-port"
 
-iptables -t nat -A PREROUTING -p tcp --dport ${INBOUND_PORT} -j TRATTERIA_IN_REDIRECT -m comment --comment "tratteria/install-tratteria-inbound-prerouting"
+iptables -t nat -A PREROUTING -p tcp --dport ${INBOUND_PORT} -j TRATTERIA_IN_REDIRECT -m comment --comment "tokenetes/install-tokenetes-inbound-prerouting"
 
 exit 0

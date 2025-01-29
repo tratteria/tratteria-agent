@@ -16,7 +16,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	"github.com/tratteria/tratteria-agent/verificationrules/v1alpha1"
+	"github.com/tokenetes/tokenetes-agent/verificationrules/v1alpha1"
 	"go.uber.org/zap"
 )
 
@@ -53,8 +53,8 @@ const (
 	MessageTypeGetJWKSResponse                               MessageType = "GET_JWKS_RESPONSE"
 	MessageTypeTraTVerificationRuleUpsertRequest             MessageType = "TRAT_VERIFICATION_RULE_UPSERT_REQUEST"
 	MessageTypeTraTVerificationRuleUpsertResponse            MessageType = "TRAT_VERIFICATION_RULE_UPSERT_RESPONSE"
-	MessageTypeTratteriaConfigVerificationRuleUpsertRequest  MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_REQUEST"
-	MessageTypeTratteriaConfigVerificationRuleUpsertResponse MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_RESPONSE"
+	MessageTypeTokenetesConfigVerificationRuleUpsertRequest  MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_REQUEST"
+	MessageTypeTokenetesConfigVerificationRuleUpsertResponse MessageType = "TRATTERIA_CONFIG_VERIFICATION_RULE_UPSERT_RESPONSE"
 	MessageTypeRuleReconciliationRequest                     MessageType = "RULE_RECONCILIATION_REQUEST"
 	MessageTypeRuleReconciliationResponse                    MessageType = "RULE_RECONCILIATION_RESPONSE"
 	MessageTypeTraTDeletionRequest                           MessageType = "TRAT_DELETION_REQUEST"
@@ -351,7 +351,7 @@ func (c *Client) handleMessage(message []byte) {
 
 	switch temp.Type {
 	case MessageTypeTraTVerificationRuleUpsertRequest,
-		MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
+		MessageTypeTokenetesConfigVerificationRuleUpsertRequest,
 		MessageTypeRuleReconciliationRequest,
 		MessageTypeTraTDeletionRequest,
 		MessageTypeTraTExclRuleUpsertRequest,
@@ -377,8 +377,8 @@ func (c *Client) handleRequest(message []byte) {
 	switch request.Type {
 	case MessageTypeTraTVerificationRuleUpsertRequest:
 		c.handleTraTRuleUpsertRequest(request)
-	case MessageTypeTratteriaConfigVerificationRuleUpsertRequest:
-		c.handleTratteriaConfigRuleUpsertRequest(request)
+	case MessageTypeTokenetesConfigVerificationRuleUpsertRequest:
+		c.handleTokenetesConfigRuleUpsertRequest(request)
 	case MessageTypeRuleReconciliationRequest:
 		c.handleRuleReconciliationRequest(request)
 	case MessageTypeTraTDeletionRequest:
@@ -429,24 +429,24 @@ func (c *Client) handleTraTRuleUpsertRequest(request Request) {
 	}
 }
 
-func (c *Client) handleTratteriaConfigRuleUpsertRequest(request Request) {
-	var verificationTratteriaConfigRule v1alpha1.TratteriaConfigVerificationRule
+func (c *Client) handleTokenetesConfigRuleUpsertRequest(request Request) {
+	var verificationTokenetesConfigRule v1alpha1.TokenetesConfigVerificationRule
 
-	if err := json.Unmarshal(request.Payload, &verificationTratteriaConfigRule); err != nil {
-		c.logger.Error("Failed to unmarshal tratteria config verification rule", zap.Error(err))
+	if err := json.Unmarshal(request.Payload, &verificationTokenetesConfigRule); err != nil {
+		c.logger.Error("Failed to unmarshal tokenetes config verification rule", zap.Error(err))
 		c.sendErrorResponse(
 			request.ID,
-			MessageTypeTratteriaConfigVerificationRuleUpsertRequest,
+			MessageTypeTokenetesConfigVerificationRuleUpsertRequest,
 			http.StatusBadRequest,
-			"error parsing tratteria config verification rule",
+			"error parsing tokenetes config verification rule",
 		)
 
 		return
 	}
 
-	c.logger.Info("Received tratteria config verification rule upsert request")
+	c.logger.Info("Received tokenetes config verification rule upsert request")
 
-	c.verificationRulesManager.UpdateTratteriaConfigRule(&verificationTratteriaConfigRule)
+	c.verificationRulesManager.UpdateTokenetesConfigRule(&verificationTokenetesConfigRule)
 
 	err := c.sendResponse(request.ID, MessageTypeTraTVerificationRuleUpsertResponse, http.StatusOK, nil)
 	if err != nil {
