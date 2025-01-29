@@ -41,14 +41,14 @@ if [[ -z "${INBOUND_PORT}" || -z "${AGENT_PORT}" ]]; then
   exit 1
 fi
 
-if ! iptables -t nat -L TRATTERIA_IN_REDIRECT &> /dev/null; then
-  iptables -t nat -N TRATTERIA_IN_REDIRECT -m comment --comment "tokenetes/redirect-inbound-chain"
+if ! iptables -t nat -L TOKENETES_IN_REDIRECT &> /dev/null; then
+  iptables -t nat -N TOKENETES_IN_REDIRECT -m comment --comment "tokenetes/redirect-inbound-chain"
 fi
 
-iptables -t nat -F TRATTERIA_IN_REDIRECT
+iptables -t nat -F TOKENETES_IN_REDIRECT
 
-iptables -t nat -A TRATTERIA_IN_REDIRECT -p tcp --dport ${INBOUND_PORT} -j REDIRECT --to-port ${AGENT_PORT} -m comment --comment "tokenetes/redirect-to-tokenetes-inbound-port"
+iptables -t nat -A TOKENETES_IN_REDIRECT -p tcp --dport ${INBOUND_PORT} -j REDIRECT --to-port ${AGENT_PORT} -m comment --comment "tokenetes/redirect-to-tokenetes-inbound-port"
 
-iptables -t nat -A PREROUTING -p tcp --dport ${INBOUND_PORT} -j TRATTERIA_IN_REDIRECT -m comment --comment "tokenetes/install-tokenetes-inbound-prerouting"
+iptables -t nat -A PREROUTING -p tcp --dport ${INBOUND_PORT} -j TOKENETES_IN_REDIRECT -m comment --comment "tokenetes/install-tokenetes-inbound-prerouting"
 
 exit 0
